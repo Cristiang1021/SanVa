@@ -1,6 +1,6 @@
 const express = require('express');
 const { sequelize, Funcion, Asiento, Seccion, Venta, Evento, Usuario } = require('../models');
-const { authMiddleware, requireVendedor } = require('../middleware/auth');
+const { authMiddleware, requireVendedor, esPanelAdmin } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const emailService = require('../services/emailService');
 
@@ -265,9 +265,8 @@ router.delete('/:id', authMiddleware, requireVendedor, async (req, res) => {
       return res.status(404).json({ error: 'Venta no encontrada.' });
     }
 
-    // Solo admin puede cancelar cualquier venta
-    // Vendedor solo puede cancelar sus propias ventas
-    if (req.usuario.rol !== 'admin' && venta.usuario_id !== req.usuario.id) {
+    // Admin/superadmin puede cancelar cualquier venta; vendedor solo las suyas
+    if (!esPanelAdmin(req.usuario) && venta.usuario_id !== req.usuario.id) {
       await transaction.rollback();
       return res.status(403).json({ error: 'No puedes cancelar esta venta.' });
     }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getReporteVentas, getReporteRanking, downloadReporteVentasPdf, downloadRankingPdf } from '../../api';
+import { getReporteVentas, getReporteRanking, downloadReporteVentasPdf, downloadRankingPdf, cancelarVenta } from '../../api';
 import { descargarPdf } from '../../utils/download';
 import ListaEntradaPanel from '../../components/ListaEntradaPanel';
 
@@ -17,6 +17,7 @@ export default function AdminReportes() {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [descargando, setDescargando] = useState('');
+  const [cancelandoId, setCancelandoId] = useState(null);
 
   useEffect(() => {
     fetchReportes();
@@ -44,6 +45,25 @@ export default function AdminReportes() {
 
   const handleFiltrar = () => {
     fetchReportes(fechaInicio, fechaFin);
+  };
+
+  const handleCancelarVenta = async (venta) => {
+    const asiento = venta.asiento
+      ? `${venta.asiento.fila || ''}${venta.asiento.numero || ''}`
+      : '—';
+    const msg = `¿Cancelar la venta #${venta.id}?\n\nCliente: ${venta.cliente_nombre}\nAsiento: ${asiento}\n\nEl asiento quedará disponible de nuevo.`;
+    if (!confirm(msg)) return;
+
+    try {
+      setCancelandoId(venta.id);
+      setError('');
+      await cancelarVenta(venta.id);
+      await fetchReportes(fechaInicio, fechaFin);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al cancelar venta');
+    } finally {
+      setCancelandoId(null);
+    }
   };
 
   const filtros = {
@@ -190,6 +210,7 @@ export default function AdminReportes() {
                   <th className="px-6 py-3 text-left text-sm font-bold text-ink">Pago</th>
                   <th className="px-6 py-3 text-left text-sm font-bold text-ink">Monto</th>
                   <th className="px-6 py-3 text-left text-sm font-bold text-ink">Fecha</th>
+                  <th className="px-6 py-3 text-center text-sm font-bold text-ink">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -208,6 +229,16 @@ export default function AdminReportes() {
                     </td>
                     <td className="px-6 py-4 text-body font-bold">${venta.precio_unitario?.toFixed(2)}</td>
                     <td className="px-6 py-4 text-body">{new Date(venta.fecha_venta).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleCancelarVenta(venta)}
+                        disabled={cancelandoId === venta.id}
+                        className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-600 disabled:opacity-50"
+                      >
+                        {cancelandoId === venta.id ? 'Cancelando…' : 'Cancelar'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
