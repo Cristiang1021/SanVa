@@ -75,6 +75,8 @@ export const updateSeccion = (id, data) => client.put(`/secciones/${id}`, data);
 
 export const deleteSeccion = (id) => client.delete(`/secciones/${id}`);
 
+export const restaurarSeccion = (id) => client.post(`/secciones/${id}/restaurar`);
+
 // ===== ASIENTOS =====
 export const getAsientos = (seccionId) =>
   client.get(`/asientos/seccion/${seccionId}`);

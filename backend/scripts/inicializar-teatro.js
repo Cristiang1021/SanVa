@@ -1,5 +1,6 @@
 const { sequelize } = require('../src/config/database');
-const { Seccion, Asiento } = require('../src/models');
+const { Seccion, Asiento, Venta } = require('../src/models');
+const { Op } = require('sequelize');
 
 const ESTRUCTURA_TEATRO = {
   platea: {
@@ -142,7 +143,113 @@ async function inicializarTeatro(eventoId) {
   }
 }
 
-module.exports = { inicializarTeatro, ESTRUCTURA_TEATRO, calcularCapacidad };
+function inferLayoutKeyFromAsientos(asientos) {
+  const filas = new Set(asientos.map((a) => String(a.fila || '').toLowerCase()));
+  if (filas.has('p')) return 'palco1';
+  if (filas.has('v')) return 'palco2';
+  if (filas.has('z')) return 'palco3';
+  if (asientos.length) return 'platea';
+  return null;
+}
+
+async function restaurarSeccion(seccionId) {
+  const seccion = await Seccion.findByPk(seccionId);
+  if (!seccion) {
+    throw new Error('Sección no encontrada.');
+  }
+
+  const asientosActuales = await Asiento.findAll({
+    where: { seccion_id: seccion.id },
+    attributes: ['id', 'fila', 'numero'],
+  });
+
+  const layoutKey =
+    seccion.layout_key ||
+    inferLayoutKeyFromAsientos(asientosActuales);
+
+  const plantilla = layoutKey ? ESTRUCTURA_TEATRO[layoutKey] : null;
+  if (!plantilla) {
+    throw new Error(
+      'No se puede restaurar: esta sección no corresponde a Platea, Palco 1, Palco 2 ni Palco 3.'
+    );
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const asientoIds = asientosActuales.map((a) => a.id);
+    const ventas = asientoIds.length
+      ? await Venta.findAll({
+          where: { asiento_id: asientoIds },
+          attributes: ['asiento_id'],
+          transaction,
+        })
+      : [];
+    const vendidosIds = [...new Set(ventas.map((v) => v.asiento_id))];
+
+    if (vendidosIds.length) {
+      await Asiento.destroy({
+        where: {
+          seccion_id: seccion.id,
+          id: { [Op.notIn]: vendidosIds },
+        },
+        transaction,
+      });
+    } else {
+      await Asiento.destroy({
+        where: { seccion_id: seccion.id },
+        transaction,
+      });
+    }
+
+    const restantes = await Asiento.findAll({
+      where: { seccion_id: seccion.id },
+      attributes: ['fila', 'numero'],
+      transaction,
+    });
+    const existentes = new Set(restantes.map((a) => `${a.fila}-${a.numero}`));
+
+    const originales = generarAsientos(seccion.id, plantilla.asientos).filter(
+      (a) => !existentes.has(`${a.fila}-${a.numero}`)
+    );
+    if (originales.length) {
+      await bulkInsertAsientos(originales, transaction);
+    }
+
+    const capacidad = calcularCapacidad(plantilla.asientos);
+
+    await seccion.update(
+      {
+        nombre: plantilla.nombre,
+        precio: plantilla.precio,
+        color: plantilla.color,
+        layout_key: layoutKey,
+        capacidad,
+        activo: true,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    await seccion.reload();
+    return {
+      seccion,
+      asientos_creados: originales.length,
+      ventas_conservadas: vendidosIds.length,
+    };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
+module.exports = {
+  inicializarTeatro,
+  restaurarSeccion,
+  ESTRUCTURA_TEATRO,
+  calcularCapacidad,
+};
 
 if (require.main === module) {
   const eventoId = process.argv[2] || 1;

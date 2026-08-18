@@ -8,6 +8,7 @@ import {
   generarAsientos,
   deleteAsientosPorSeccion,
   bloquearAsiento,
+  restaurarSeccion,
 } from '../../api';
 import Modal from '../../components/Modal';
 import SeatGrid from '../../components/SeatGrid';
@@ -25,6 +26,7 @@ export default function AdminSecciones() {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [generarModalOpen, setGenerarModalOpen] = useState(false);
+  const [restaurandoId, setRestaurandoId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     evento_id: null,
@@ -171,6 +173,30 @@ export default function AdminSecciones() {
     }
   };
 
+  const handleRestaurarSeccion = async (seccion) => {
+    const ok = confirm(
+      `¿Restaurar "${seccion.nombre}" a su estado original?\n\nSe restablecerán nombre, precio, color y asientos de origen. Las ventas existentes se conservan.`
+    );
+    if (!ok) return;
+
+    try {
+      setRestaurandoId(seccion.id);
+      setError('');
+      const res = await restaurarSeccion(seccion.id);
+      await fetchData();
+      if (selectedSeccionId === seccion.id) {
+        await handleSelectSeccion(seccion.id);
+      }
+      if (res.data?.message) {
+        setError('');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al restaurar sección');
+    } finally {
+      setRestaurandoId(null);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Cargando...</div>;
 
   if (!funcion && error) {
@@ -235,18 +261,28 @@ export default function AdminSecciones() {
                     </div>
                   </div>
                 </button>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenSeccionModal(seccion)}
+                      className="flex-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-600 hover:bg-blue-200 transition"
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSeccion(seccion.id, seccion.nombre)}
+                      className="flex-1 px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-600 hover:bg-red-200 transition"
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </div>
                   <button
-                    onClick={() => handleOpenSeccionModal(seccion)}
-                    className="flex-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded text-xs font-600 hover:bg-blue-200 transition"
+                    type="button"
+                    onClick={() => handleRestaurarSeccion(seccion)}
+                    disabled={restaurandoId === seccion.id}
+                    className="w-full px-3 py-1.5 bg-amber-100 text-amber-800 rounded text-xs font-600 hover:bg-amber-200 transition disabled:opacity-50"
                   >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSeccion(seccion.id, seccion.nombre)}
-                    className="flex-1 px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-600 hover:bg-red-200 transition"
-                  >
-                    🗑️ Eliminar
+                    {restaurandoId === seccion.id ? 'Restaurando…' : 'Restaurar original'}
                   </button>
                 </div>
               </div>

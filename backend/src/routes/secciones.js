@@ -3,6 +3,7 @@ const { Evento, Seccion, Asiento } = require('../models');
 const { useTurso } = require('../config/database');
 const { tursoAll } = require('../config/tursoQuery');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
+const { restaurarSeccion } = require('../../scripts/inicializar-teatro');
 
 const router = express.Router();
 
@@ -88,6 +89,27 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error al crear sección:', error);
     res.status(500).json({ error: 'Error al crear sección.' });
+  }
+});
+
+// Restaurar sección a plantilla original del teatro
+router.post('/:id/restaurar', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const resultado = await restaurarSeccion(req.params.id);
+    res.json({
+      message: resultado.ventas_conservadas
+        ? `Sección restaurada. Se conservaron ${resultado.ventas_conservadas} asiento(s) con ventas.`
+        : 'Sección restaurada a su estado original.',
+      seccion: resultado.seccion,
+      asientos_creados: resultado.asientos_creados,
+      ventas_conservadas: resultado.ventas_conservadas,
+    });
+  } catch (error) {
+    console.error('Error al restaurar sección:', error);
+    const status = error.message?.includes('No se puede restaurar') || error.message?.includes('no encontrada')
+      ? 400
+      : 500;
+    res.status(status).json({ error: error.message || 'Error al restaurar sección.' });
   }
 });
 
