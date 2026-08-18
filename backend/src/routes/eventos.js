@@ -2,28 +2,60 @@ const express = require('express');
 const { Evento, Seccion, Funcion } = require('../models');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 const { inicializarTeatro } = require('../../scripts/inicializar-teatro');
-const { parseImagenBase64 } = require('../utils/imagen');
+const { imagenDesdeBody, serializarEvento, parseImagenBase64 } = require('../utils/imagen');
 
 const router = express.Router();
 
-function imagenDesdeBody(body) {
-  if (!body?.imagen_base64) return undefined;
-  if (body.imagen_base64 === '' || body.imagen_base64 === null) return null;
-  return parseImagenBase64(body.imagen_base64);
-}
+const EVENTO_INCLUDES = [
+  { model: Seccion, as: 'secciones' },
+  { model: Funcion, as: 'funciones' },
+];
+
+const LIST_INCLUDES = [
+  { model: Seccion, as: 'secciones', attributes: ['id', 'nombre', 'precio', 'color', 'capacidad'] },
+  { model: Funcion, as: 'funciones', attributes: ['id', 'fecha_hora', 'lugar'] },
+];
+
+// Imagen binaria del evento (público: las etiquetas <img> no envían JWT)
+router.get('/:id/imagen', async (req, res) => {
+  try {
+    const evento = await Evento.scope('conImagen').findByPk(req.params.id, {
+      attributes: ['id', 'imagen_data', 'imagen_mime', 'imagen_url', 'activo'],
+    });
+
+    if (!evento || !evento.activo) {
+      return res.status(404).json({ error: 'Imagen no encontrada.' });
+    }
+
+    if (evento.imagen_data) {
+      res.set('Content-Type', evento.imagen_mime || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(Buffer.from(evento.imagen_data));
+    }
+
+    if (evento.imagen_url?.startsWith('data:')) {
+      const parsed = parseImagenBase64(evento.imagen_url);
+      res.set('Content-Type', parsed.mime);
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(parsed.buffer);
+    }
+
+    return res.status(404).json({ error: 'Imagen no encontrada.' });
+  } catch (error) {
+    console.error('Error al servir imagen:', error);
+    res.status(500).json({ error: 'Error al cargar imagen.' });
+  }
+});
 
 // Obtener todos los eventos
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const eventos = await Evento.findAll({
       where: { activo: true },
-      include: [
-        { model: Seccion, as: 'secciones', attributes: ['id', 'nombre', 'precio', 'color', 'capacidad'] },
-        { model: Funcion, as: 'funciones', attributes: ['id', 'fecha_hora', 'lugar'] }
-      ],
-      order: [['created_at', 'DESC']]
+      include: LIST_INCLUDES,
+      order: [['created_at', 'DESC']],
     });
-    res.json({ eventos });
+    res.json({ eventos: eventos.map(serializarEvento) });
   } catch (error) {
     console.error('Error al obtener eventos:', error);
     res.status(500).json({ error: 'Error al obtener eventos.' });
@@ -34,17 +66,14 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const evento = await Evento.findByPk(req.params.id, {
-      include: [
-        { model: Seccion, as: 'secciones' },
-        { model: Funcion, as: 'funciones' }
-      ]
+      include: EVENTO_INCLUDES,
     });
 
     if (!evento) {
       return res.status(404).json({ error: 'Evento no encontrado.' });
     }
 
-    res.json({ evento });
+    res.json({ evento: serializarEvento(evento) });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener evento.' });
   }
@@ -65,37 +94,35 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
       nombre,
       descripcion: descripcion || null,
       fecha_unica: fecha_unica || null,
-      hora_unica: fecha_unica ? hora : null
+      hora_unica: fecha_unica ? hora : null,
     };
 
-    if (imagen_base64 !== undefined) {
-      data.imagen_url = imagenDesdeBody(req.body);
-    }
+    const imagen = imagenDesdeBody(req.body);
+    if (imagen !== undefined) Object.assign(data, imagen);
 
     const evento = await Evento.create(data);
 
-    // Si tiene fecha única, crear automáticamente una función ese día/hora
     if (fecha_unica) {
       await Funcion.create({
         evento_id: evento.id,
         fecha_hora: new Date(`${fecha_unica}T${hora}:00`),
         lugar: 'Sanva Shows',
-        activo: true
+        activo: true,
       });
     }
 
     const eventoCompleto = await Evento.findByPk(evento.id, {
-      include: [
-        { model: Seccion, as: 'secciones' },
-        { model: Funcion, as: 'funciones' }
-      ]
+      include: EVENTO_INCLUDES,
     });
 
-    res.status(201).json({ message: 'Evento creado correctamente', evento: eventoCompleto });
+    res.status(201).json({
+      message: 'Evento creado correctamente',
+      evento: serializarEvento(eventoCompleto),
+    });
   } catch (error) {
     console.error('Error al crear evento:', error);
     res.status(error.message?.includes('imagen') ? 400 : 500).json({
-      error: error.message || 'Error al crear evento.'
+      error: error.message || 'Error al crear evento.',
     });
   }
 });
@@ -131,7 +158,7 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Evento no encontrado.' });
     }
 
-    const { nombre, descripcion, activo, fecha_unica, hora_unica, imagen_base64 } = req.body;
+    const { nombre, descripcion, activo, fecha_unica, hora_unica } = req.body;
     const updates = {};
 
     if (nombre !== undefined) updates.nombre = nombre;
@@ -144,17 +171,23 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
       updates.hora_unica = hora_unica || null;
     }
 
-    if (imagen_base64 !== undefined) {
-      updates.imagen_url = imagenDesdeBody(req.body);
-    }
+    const imagen = imagenDesdeBody(req.body);
+    if (imagen !== undefined) Object.assign(updates, imagen);
 
     await evento.update(updates);
 
-    res.json({ message: 'Evento actualizado correctamente', evento });
+    const eventoActualizado = await Evento.findByPk(evento.id, {
+      include: EVENTO_INCLUDES,
+    });
+
+    res.json({
+      message: 'Evento actualizado correctamente',
+      evento: serializarEvento(eventoActualizado),
+    });
   } catch (error) {
     console.error('Error al actualizar evento:', error);
     res.status(error.message?.includes('imagen') ? 400 : 500).json({
-      error: error.message || 'Error al actualizar evento.'
+      error: error.message || 'Error al actualizar evento.',
     });
   }
 });

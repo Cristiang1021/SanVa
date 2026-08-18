@@ -23,12 +23,46 @@ function parseImagenBase64(raw) {
   }
 
   const base64 = match[2];
-  const bytes = Buffer.byteLength(base64, 'base64');
-  if (bytes > MAX_BYTES) {
+  const buffer = Buffer.from(base64, 'base64');
+
+  if (buffer.length > MAX_BYTES) {
     throw new Error('La imagen no puede superar 5 MB.');
   }
 
-  return dataUrl;
+  return { buffer, mime };
 }
 
-module.exports = { parseImagenBase64, MAX_BYTES };
+function imagenDesdeBody(body) {
+  if (body?.imagen_base64 === undefined) return undefined;
+  if (body.imagen_base64 === '' || body.imagen_base64 === null) {
+    return { imagen_data: null, imagen_mime: null, imagen_url: null };
+  }
+
+  const parsed = parseImagenBase64(body.imagen_base64);
+  return {
+    imagen_data: parsed.buffer,
+    imagen_mime: parsed.mime,
+    imagen_url: null,
+  };
+}
+
+function serializarEvento(evento) {
+  const json = evento.toJSON();
+  delete json.imagen_data;
+
+  if (json.imagen_mime) {
+    json.imagen_url = `/api/eventos/${evento.id}/imagen`;
+  } else if (!json.imagen_url) {
+    json.imagen_url = null;
+  }
+
+  delete json.imagen_mime;
+  return json;
+}
+
+module.exports = {
+  parseImagenBase64,
+  imagenDesdeBody,
+  serializarEvento,
+  MAX_BYTES,
+};
