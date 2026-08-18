@@ -16,7 +16,15 @@ const Evento = sequelize.define('Evento', {
     allowNull: true
   },
   imagen_url: {
-    type: DataTypes.TEXT,
+    type: DataTypes.STRING(500),
+    allowNull: true
+  },
+  imagen_mime: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  imagen_data: {
+    type: DataTypes.BLOB('long'),
     allowNull: true
   },
   fecha_unica: {
@@ -35,7 +43,15 @@ const Evento = sequelize.define('Evento', {
   tableName: 'eventos',
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  updatedAt: 'updated_at',
+  defaultScope: {
+    attributes: { exclude: ['imagen_data'] },
+  },
+  scopes: {
+    conImagen: {
+      attributes: { include: ['imagen_data'] },
+    },
+  },
 });
 
 module.exports = Evento;

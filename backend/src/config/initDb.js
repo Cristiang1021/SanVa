@@ -1,5 +1,7 @@
 const { sequelize, useTurso } = require('./database');
-const { Usuario, ConfiguracionSmtp } = require('../models');
+const { Op } = require('sequelize');
+const { Usuario, ConfiguracionSmtp, Evento } = require('../models');
+const { parseImagenBase64 } = require('../utils/imagen');
 const crypto = require('crypto');
 
 const TABLAS_APP = [
@@ -61,6 +63,48 @@ const repararEsquemaTurso = async () => {
   }
 };
 
+const migrarEsquemaEventosImagen = async () => {
+  const [tablas] = await sequelize.query(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='eventos'"
+  );
+  if (!tablas.length) return;
+
+  const [columnas] = await sequelize.query('PRAGMA table_info(eventos)');
+  const nombres = columnas.map((c) => c.name);
+
+  if (!nombres.includes('imagen_data')) {
+    await sequelize.query('ALTER TABLE eventos ADD COLUMN imagen_data BLOB');
+    console.log('✓ Columna eventos.imagen_data (BLOB) añadida');
+  }
+  if (!nombres.includes('imagen_mime')) {
+    await sequelize.query('ALTER TABLE eventos ADD COLUMN imagen_mime VARCHAR(50)');
+    console.log('✓ Columna eventos.imagen_mime añadida');
+  }
+
+  const legacy = await Evento.unscoped().findAll({
+    where: {
+      imagen_mime: null,
+      imagen_url: { [Op.like]: 'data:%' },
+    },
+    attributes: ['id', 'imagen_url', 'imagen_mime', 'imagen_data'],
+  });
+
+  for (const evento of legacy) {
+    if (!evento.imagen_url?.startsWith('data:')) continue;
+    try {
+      const { buffer, mime } = parseImagenBase64(evento.imagen_url);
+      await evento.update({
+        imagen_data: buffer,
+        imagen_mime: mime,
+        imagen_url: null,
+      });
+      console.log(`✓ Imagen del evento ${evento.id} migrada a BLOB`);
+    } catch (err) {
+      console.warn(`⚠ No se pudo migrar imagen del evento ${evento.id}:`, err.message);
+    }
+  }
+};
+
 const inicializarDB = async () => {
   try {
     console.log('Inicializando base de datos...');
@@ -70,6 +114,7 @@ const inicializarDB = async () => {
       try {
         const yaListo = await Usuario.findByPk(1);
         if (yaListo) {
+          await migrarEsquemaEventosImagen();
           console.log('✓ Turso ya inicializado (superadmin id:1)');
           return;
         }
@@ -80,9 +125,11 @@ const inicializarDB = async () => {
 
     await repararEsquemaTurso();
     await sequelize.sync();
+    await migrarEsquemaEventosImagen();
 
     if (!useTurso) {
       await Usuario.sync({ alter: true });
+      await Evento.sync({ alter: true });
       if (ConfiguracionSmtp) {
         await ConfiguracionSmtp.sync({ alter: true });
       }
