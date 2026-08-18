@@ -82,19 +82,38 @@ async function inicializarTeatro(eventoId) {
     console.log(`Inicializando teatro para evento ${eventoId}...`);
     let totalAsientos = 0;
 
-    for (const seccionData of Object.values(ESTRUCTURA_TEATRO)) {
-      const [seccion] = await Seccion.findOrCreate({
-        where: { evento_id: eventoId, nombre: seccionData.nombre },
-        defaults: {
-          evento_id: eventoId,
-          nombre: seccionData.nombre,
-          precio: seccionData.precio,
-          color: seccionData.color,
-          capacidad: calcularCapacidad(seccionData.asientos),
-          activo: true,
-        },
+    for (const [layoutKey, seccionData] of Object.entries(ESTRUCTURA_TEATRO)) {
+      let seccion = await Seccion.findOne({
+        where: { evento_id: eventoId, layout_key: layoutKey },
         transaction,
       });
+
+      if (!seccion) {
+        seccion = await Seccion.findOne({
+          where: { evento_id: eventoId, nombre: seccionData.nombre },
+          transaction,
+        });
+        if (seccion) {
+          await seccion.update({ layout_key: layoutKey }, { transaction });
+        }
+      }
+
+      if (!seccion) {
+        seccion = await Seccion.create(
+          {
+            evento_id: eventoId,
+            nombre: seccionData.nombre,
+            layout_key: layoutKey,
+            precio: seccionData.precio,
+            color: seccionData.color,
+            capacidad: calcularCapacidad(seccionData.asientos),
+            activo: true,
+          },
+          { transaction }
+        );
+      } else if (!seccion.layout_key) {
+        await seccion.update({ layout_key: layoutKey }, { transaction });
+      }
 
       const existentes = await Asiento.count({
         where: { seccion_id: seccion.id },

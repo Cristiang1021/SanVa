@@ -13,7 +13,7 @@ router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
 
     if (useTurso) {
       const secciones = await tursoAll(
-        `SELECT id, nombre, precio, color, capacidad, evento_id, activo
+        `SELECT id, nombre, precio, color, capacidad, evento_id, activo, layout_key
          FROM secciones WHERE evento_id = ? AND activo = 1 ORDER BY nombre ASC`,
         [eventoId]
       );
@@ -22,7 +22,7 @@ router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
 
     const secciones = await Seccion.findAll({
       where: { evento_id: req.params.eventoId, activo: true },
-      attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo'],
+      attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo', 'layout_key'],
       order: [['nombre', 'ASC']],
     });
     res.json({ secciones });
@@ -55,11 +55,20 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Crear sección (solo admin)
 router.post('/', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const { evento_id, nombre, precio, color, capacidad } = req.body;
+    const { evento_id, nombre, precio, color, capacidad, layout_key } = req.body;
 
     if (!evento_id || !nombre) {
       return res.status(400).json({ error: 'Evento y nombre son requeridos.' });
     }
+
+    const inferLayout = (n) => {
+      const lower = (n || '').toLowerCase();
+      if (lower.includes('platea')) return 'platea';
+      if (lower.includes('palco 1')) return 'palco1';
+      if (lower.includes('palco 2')) return 'palco2';
+      if (lower.includes('palco 3')) return 'palco3';
+      return null;
+    };
 
     const evento = await Evento.findByPk(evento_id);
     if (!evento) {
@@ -69,6 +78,7 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
     const seccion = await Seccion.create({
       evento_id,
       nombre,
+      layout_key: layout_key || inferLayout(nombre),
       precio: precio || 0,
       color: color || '#3B82F6',
       capacidad: capacidad || 0

@@ -31,7 +31,7 @@ router.get('/:id/admin-setup', authMiddleware, requireAdmin, async (req, res) =>
 
       const [secciones, conteos] = await Promise.all([
         tursoAll(
-          `SELECT id, nombre, precio, color, capacidad, evento_id, activo
+          `SELECT id, nombre, precio, color, capacidad, evento_id, activo, layout_key
            FROM secciones WHERE evento_id = ? AND activo = 1 ORDER BY nombre ASC`,
           [funcion.evento_id]
         ),
@@ -60,7 +60,7 @@ router.get('/:id/admin-setup', authMiddleware, requireAdmin, async (req, res) =>
 
     const secciones = await Seccion.findAll({
       where: { evento_id: funcion.evento_id, activo: true },
-      attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo'],
+      attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo', 'layout_key'],
       order: [['nombre', 'ASC']],
     });
 
@@ -144,7 +144,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
 
       const [secciones, vendidosRow, totalRow] = await Promise.all([
         tursoAll(
-          `SELECT id, nombre, precio, color, capacidad
+          `SELECT id, nombre, precio, color, capacidad, layout_key
            FROM secciones WHERE evento_id = ? AND activo = 1 ORDER BY nombre ASC`,
           [funcion.evento_id]
         ),
@@ -203,7 +203,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
     const [secciones, vendidosCount] = await Promise.all([
       Seccion.findAll({
         where: { evento_id: funcion.evento_id, activo: true },
-        attributes: ['id', 'nombre', 'precio', 'color', 'capacidad'],
+        attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'layout_key'],
         order: [['nombre', 'ASC']],
       }),
       Venta.count({ where: { funcion_id: funcion.id } }),

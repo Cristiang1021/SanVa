@@ -246,8 +246,14 @@ function placeMany(map, triples) {
   return triples.map(([n, x, y]) => place(map, n, x, y)).filter(Boolean);
 }
 
-export function sectionKey(nombre = '') {
-  const n = nombre.toLowerCase();
+export function sectionKey(seccionOrNombre) {
+  if (seccionOrNombre && typeof seccionOrNombre === 'object') {
+    const key = seccionOrNombre.layout_key;
+    if (key && LEVEL_ORDER.includes(key)) return key;
+    return sectionKey(seccionOrNombre.nombre);
+  }
+
+  const n = String(seccionOrNombre || '').toLowerCase();
   if (n.includes('platea')) return 'platea';
   if (n.includes('palco 1')) return 'palco1';
   if (n.includes('palco 2')) return 'palco2';
@@ -256,12 +262,19 @@ export function sectionKey(nombre = '') {
 }
 
 export function layoutForSeccion(seccion, asientos) {
-  const key = sectionKey(seccion?.nombre);
-  if (key === 'platea') return layoutPlatea(asientos);
-  if (key === 'palco1') return layoutPalco1(asientos);
-  if (key === 'palco2') return layoutPalco2(asientos);
-  if (key === 'palco3') return layoutPalco3(asientos);
-  return layoutPlatea(asientos);
+  const key = sectionKey(seccion);
+  let layout = layoutPlatea(asientos);
+  if (key === 'palco1') layout = layoutPalco1(asientos);
+  else if (key === 'palco2') layout = layoutPalco2(asientos);
+  else if (key === 'palco3') layout = layoutPalco3(asientos);
+
+  if (seccion?.nombre && layout.footer) {
+    layout = {
+      ...layout,
+      footer: { ...layout.footer, text: seccion.nombre },
+    };
+  }
+  return layout;
 }
 
 export const LEVEL_ORDER = ['platea', 'palco1', 'palco2', 'palco3'];

@@ -28,34 +28,47 @@ const PATHS = {
   platea: `M 150 142 L 330 142 L 330 318 L 150 318 Z`,
 };
 
-const LABELS = {
+const LABEL_POS = {
   palco3: [
-    { x: 70, y: 55, text: 'Palco 3' },
-    { x: 410, y: 55, text: 'Palco 3' },
+    { x: 70, y: 50, max: 14 },
+    { x: 410, y: 50, max: 14 },
   ],
   palco2: [
-    { x: 85, y: 200, text: 'Palco 2' },
-    { x: 395, y: 200, text: 'Palco 2' },
+    { x: 85, y: 195, max: 12 },
+    { x: 395, y: 195, max: 12 },
   ],
   palco1: [
-    { x: 125, y: 230, text: 'Palco 1' },
-    { x: 355, y: 230, text: 'Palco 1' },
+    { x: 125, y: 222, max: 11 },
+    { x: 355, y: 222, max: 11 },
   ],
-  platea: [{ x: 240, y: 230, text: 'PLATEA', size: 18 }],
+  platea: [{ x: 240, y: 222, max: 16, size: 16, single: true }],
 };
 
-const MATCHERS = {
-  platea: (n) => n.includes('platea'),
-  palco1: (n) => n.includes('palco 1'),
-  palco2: (n) => n.includes('palco 2'),
-  palco3: (n) => n.includes('palco 3'),
-};
+function truncateLabel(text, max) {
+  const t = (text || '').trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(1, max - 1))}…`;
+}
+
+function labelLines(nombre, max) {
+  const n = (nombre || '').trim();
+  const sep = n.indexOf(' - ');
+  if (sep === -1) return { primary: truncateLabel(n, max), secondary: '' };
+  return {
+    primary: truncateLabel(n.slice(0, sep).trim(), max),
+    secondary: truncateLabel(n.slice(sep + 3).trim(), max),
+  };
+}
 
 const DRAW_ORDER = ['palco3', 'palco2', 'palco1', 'platea'];
 
+function seccionPorLayout(secciones, key) {
+  return secciones.find((s) => sectionKey(s) === key) || null;
+}
+
 function LevelSelector({ secciones, selectedSeccionId, view, onSelect, onDeselect }) {
   const levels = LEVEL_ORDER.map((key, idx) => {
-    const seccion = secciones.find((s) => sectionKey(s.nombre) === key);
+    const seccion = secciones.find((s) => sectionKey(s) === key);
     return { num: idx + 1, seccion };
   }).filter((l) => l.seccion);
 
@@ -90,8 +103,8 @@ function LevelSelector({ secciones, selectedSeccionId, view, onSelect, onDeselec
 
 function OverviewMap({ secciones, selectedSeccionId, onSelectSeccion }) {
   const byKey = {};
-  for (const [key, match] of Object.entries(MATCHERS)) {
-    byKey[key] = secciones.find((s) => match(s.nombre.toLowerCase())) || null;
+  for (const key of DRAW_ORDER) {
+    byKey[key] = seccionPorLayout(secciones, key);
   }
 
   return (
@@ -125,20 +138,50 @@ function OverviewMap({ secciones, selectedSeccionId, onSelectSeccion }) {
                 {seccion.nombre} — ${Number(seccion.precio).toFixed(2)}
               </title>
             </path>
-            {LABELS[key]?.map((lab, i) => (
-              <text
-                key={i}
-                x={lab.x}
-                y={lab.y}
-                textAnchor="middle"
-                fill={selected ? '#111' : 'white'}
-                fontSize={lab.size || 11}
-                fontWeight="700"
-                style={{ pointerEvents: 'none' }}
-              >
-                {lab.text}
-              </text>
-            ))}
+            {LABEL_POS[key]?.map((lab, i) => {
+              const { primary, secondary } = labelLines(seccion.nombre, lab.max);
+              const fill = selected ? '#111' : 'white';
+              if (lab.single) {
+                return (
+                  <text
+                    key={i}
+                    x={lab.x}
+                    y={lab.y}
+                    textAnchor="middle"
+                    fill={fill}
+                    fontSize={lab.size || 14}
+                    fontWeight="700"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    <tspan x={lab.x} dy="0">{secondary || primary}</tspan>
+                    {secondary ? (
+                      <tspan x={lab.x} dy="16" fontSize="11" fontWeight="600">
+                        {primary}
+                      </tspan>
+                    ) : null}
+                  </text>
+                );
+              }
+              return (
+                <text
+                  key={i}
+                  x={lab.x}
+                  y={lab.y}
+                  textAnchor="middle"
+                  fill={fill}
+                  fontSize={11}
+                  fontWeight="700"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  <tspan x={lab.x} dy="0">{primary}</tspan>
+                  {secondary ? (
+                    <tspan x={lab.x} dy="13" fontSize="9" fontWeight="600">
+                      {secondary}
+                    </tspan>
+                  ) : null}
+                </text>
+              );
+            })}
           </g>
         );
       })}

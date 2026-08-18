@@ -34,6 +34,11 @@ const Seccion = sequelize.define('Seccion', {
     allowNull: false,
     defaultValue: 0
   },
+  layout_key: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    comment: 'platea | palco1 | palco2 | palco3 — define el croquis del mapa',
+  },
   activo: {
     type: DataTypes.BOOLEAN,
     defaultValue: true

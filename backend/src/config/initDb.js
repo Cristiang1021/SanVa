@@ -1,7 +1,7 @@
 const { sequelize, useTurso } = require('./database');
 const { tursoGet } = require('./tursoQuery');
 const { Op } = require('sequelize');
-const { Usuario, ConfiguracionSmtp, Evento } = require('../models');
+const { Usuario, ConfiguracionSmtp, Evento, Seccion } = require('../models');
 const { parseImagenBase64 } = require('../utils/imagen');
 const crypto = require('crypto');
 
@@ -113,6 +113,66 @@ const migrarEsquemaEventosImagen = async () => {
   }
 };
 
+const inferLayoutFromNombre = (nombre = '') => {
+  const n = nombre.toLowerCase();
+  if (n.includes('platea')) return 'platea';
+  if (n.includes('palco 1')) return 'palco1';
+  if (n.includes('palco 2')) return 'palco2';
+  if (n.includes('palco 3')) return 'palco3';
+  return null;
+};
+
+const migrarLayoutKeySecciones = async () => {
+  const [tablas] = await sequelize.query(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='secciones'"
+  );
+  if (!tablas.length) return;
+
+  const [columnas] = await sequelize.query('PRAGMA table_info(secciones)');
+  if (!columnas.map((c) => c.name).includes('layout_key')) {
+    await sequelize.query('ALTER TABLE secciones ADD COLUMN layout_key VARCHAR(20)');
+    console.log('✓ Columna secciones.layout_key añadida');
+  }
+
+  // Inferir por filas de asientos (funciona aunque el nombre sea "ALO", "DGAG", etc.)
+  await sequelize.query(`
+    UPDATE secciones SET layout_key = (
+      CASE
+        WHEN EXISTS (
+          SELECT 1 FROM asientos a
+          WHERE a.seccion_id = secciones.id AND LOWER(a.fila) = 'p'
+        ) THEN 'palco1'
+        WHEN EXISTS (
+          SELECT 1 FROM asientos a
+          WHERE a.seccion_id = secciones.id AND LOWER(a.fila) = 'v'
+        ) THEN 'palco2'
+        WHEN EXISTS (
+          SELECT 1 FROM asientos a
+          WHERE a.seccion_id = secciones.id AND LOWER(a.fila) = 'z'
+        ) THEN 'palco3'
+        WHEN EXISTS (
+          SELECT 1 FROM asientos a WHERE a.seccion_id = secciones.id
+        ) THEN 'platea'
+        ELSE layout_key
+      END
+    )
+    WHERE layout_key IS NULL OR layout_key = ''
+  `);
+
+  const [pendientes] = await sequelize.query(
+    "SELECT id, nombre FROM secciones WHERE layout_key IS NULL OR layout_key = ''"
+  );
+
+  for (const row of pendientes) {
+    const key = inferLayoutFromNombre(row.nombre);
+    if (key) {
+      await sequelize.query('UPDATE secciones SET layout_key = ? WHERE id = ?', {
+        replacements: [key, row.id],
+      });
+    }
+  }
+};
+
 let tursoMigracionImagenHecha = false;
 
 const inicializarDB = async () => {
@@ -128,6 +188,7 @@ const inicializarDB = async () => {
             await migrarEsquemaEventosImagen();
             tursoMigracionImagenHecha = true;
           }
+          await migrarLayoutKeySecciones();
           return;
         }
       } catch {
@@ -139,6 +200,7 @@ const inicializarDB = async () => {
     await sequelize.sync();
     await migrarEsquemaEventosImagen();
     tursoMigracionImagenHecha = true;
+    await migrarLayoutKeySecciones();
 
     // SQLite deja tablas *_backup de alters fallidos; hay que borrarlas
     // o CREATE TABLE IF NOT EXISTS reutiliza el esquema viejo y explota.
@@ -148,6 +210,7 @@ const inicializarDB = async () => {
 
     if (!useTurso) {
       await Usuario.sync({ alter: true });
+      await Seccion.sync({ alter: true });
       if (ConfiguracionSmtp) {
         await ConfiguracionSmtp.sync({ alter: true });
       }

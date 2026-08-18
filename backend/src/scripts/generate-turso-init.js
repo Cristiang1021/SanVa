@@ -83,6 +83,7 @@ CREATE TABLE secciones (
   precio DECIMAL(10,2) NOT NULL DEFAULT 0,
   color VARCHAR(7) NOT NULL DEFAULT '#3B82F6',
   capacidad INTEGER NOT NULL DEFAULT 0,
+  layout_key VARCHAR(20),
   activo TINYINT(1) DEFAULT 1,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
