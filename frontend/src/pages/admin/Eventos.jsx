@@ -180,11 +180,24 @@ export default function AdminEventos() {
           {eventos.map((evento) => (
             <div key={evento.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition">
               {evento.imagen_url ? (
-                <img
-                  src={mediaUrl(evento.imagen_url)}
-                  alt={evento.nombre}
-                  className="w-full h-40 object-cover"
-                />
+                <>
+                  <img
+                    src={mediaUrl(evento.imagen_url)}
+                    alt={evento.nombre}
+                    className="w-full h-40 object-cover bg-surface-dark"
+                    onError={(e) => {
+                      e.currentTarget.classList.add('hidden');
+                      const fallback = e.currentTarget.nextElementSibling;
+                      if (fallback) {
+                        fallback.classList.remove('hidden');
+                        fallback.classList.add('flex');
+                      }
+                    }}
+                  />
+                  <div className="hidden w-full h-40 bg-surface-dark items-center justify-center">
+                    <span className="text-white/40 text-sm">Sin imagen</span>
+                  </div>
+                </>
               ) : (
                 <div className="w-full h-40 bg-surface-dark flex items-center justify-center">
                   <span className="text-white/40 text-sm">Sin imagen</span>

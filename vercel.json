@@ -2,7 +2,10 @@
   "services": {
     "frontend": {
       "root": "frontend",
-      "framework": "vite"
+      "framework": "vite",
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+      ]
     },
     "backend": {
       "root": "backend",
@@ -10,8 +13,9 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "backend" } },
-    { "source": "/uploads/(.*)", "destination": { "service": "backend" } },
-    { "source": "/(.*)", "destination": { "service": "frontend" } }
+    { "source": "/api/:path*", "destination": { "service": "backend" } },
+    { "source": "/uploads/:path*", "destination": { "service": "backend" } },
+    { "source": "/:file(.*\\.[a-zA-Z0-9]+)", "destination": { "service": "frontend" } },
+    { "source": "/:path*", "destination": { "service": "frontend", "path": "/index.html" } }
   ]
 }
