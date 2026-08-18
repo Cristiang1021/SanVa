@@ -106,6 +106,9 @@ export const getFunciones = (eventoId) =>
 
 export const getFuncion = (id) => client.get(`/funciones/${id}`);
 
+export const getFuncionAdminSetup = (id) =>
+  client.get(`/funciones/${id}/admin-setup`);
+
 export const getEstadoFuncion = (id) =>
   client.get(`/funciones/${id}/estado`);
 

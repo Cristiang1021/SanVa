@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  getFuncion,
-  getSecciones,
+  getFuncionAdminSetup,
   getAsientos,
   createSeccion,
   updateSeccion,
@@ -22,6 +21,7 @@ export default function AdminSecciones() {
   const [asientos, setAsientos] = useState([]);
   const [selectedSeccionId, setSelectedSeccionId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [generarModalOpen, setGenerarModalOpen] = useState(false);
@@ -42,24 +42,31 @@ export default function AdminSecciones() {
   useEffect(() => {
     // Para esta implementación simplificada, cargamos secciones de forma estática
     // En producción, esto vendrá del endpoint de secciones del evento
-    fetchData();
+    fetchData({ initial: true });
   }, [funcionId]);
 
-  const fetchData = async () => {
+  const fetchData = async ({ initial = false } = {}) => {
     try {
-      setLoading(true);
-      const funcionRes = await getFuncion(funcionId);
-      const eventoId = funcionRes.data.funcion.evento_id;
-      setFuncion(funcionRes.data.funcion);
-      setFormData(prev => ({ ...prev, evento_id: eventoId }));
+      if (initial) setLoading(true);
+      else setRefreshing(true);
 
-      const seccionesRes = await getSecciones(eventoId);
-      setSecciones(seccionesRes.data.secciones || []);
+      const response = await getFuncionAdminSetup(funcionId);
+      setFuncion(response.data.funcion);
+      setSecciones(response.data.secciones || []);
+      setFormData((prev) => ({
+        ...prev,
+        evento_id: response.data.funcion?.evento_id ?? prev.evento_id,
+      }));
       setError('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al cargar datos');
+      const msg =
+        err.code === 'ECONNABORTED'
+          ? 'La solicitud tardó demasiado. Recarga la página o intenta de nuevo.'
+          : err.response?.data?.error || 'Error al cargar datos';
+      setError(msg);
     } finally {
-      setLoading(false);
+      if (initial) setLoading(false);
+      else setRefreshing(false);
     }
   };
 
@@ -166,13 +173,31 @@ export default function AdminSecciones() {
 
   if (loading) return <div className="p-8 text-center">Cargando...</div>;
 
+  if (!funcion && error) {
+    return (
+      <div className="p-8 text-center space-y-4">
+        <p className="text-red-600">{error}</p>
+        <button
+          type="button"
+          onClick={() => fetchData({ initial: true })}
+          className="px-4 py-2 bg-primary text-white rounded-md font-600"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full">
       <button onClick={() => funcion && navigate(`/admin/funciones/${funcion.evento_id}`)} className="text-primary hover:underline font-600 mb-4">
         ← Volver a Funciones
       </button>
 
-      <h1 className="text-4xl font-bold text-ink mb-8">Secciones y Asientos - Función {funcion?.lugar}</h1>
+      <h1 className="text-4xl font-bold text-ink mb-8">
+        Secciones y Asientos - Función {funcion?.lugar}
+        {refreshing && <span className="ml-3 text-sm font-normal text-gray-400">Actualizando…</span>}
+      </h1>
 
       {error && <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
@@ -206,7 +231,7 @@ export default function AdminSecciones() {
                     <div className="w-6 h-6 rounded" style={{ backgroundColor: seccion.color }}></div>
                     <div>
                       <h3 className="font-bold text-ink">{seccion.nombre}</h3>
-                      <p className="text-xs text-gray-500">${seccion.precio} x {seccion.asientos?.length || 0} asientos</p>
+                      <p className="text-xs text-gray-500">${seccion.precio} x {seccion.asientos_count ?? seccion.asientos?.length ?? 0} asientos</p>
                     </div>
                   </div>
                 </button>

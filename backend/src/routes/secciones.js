@@ -1,5 +1,7 @@
 const express = require('express');
 const { Evento, Seccion, Asiento } = require('../models');
+const { useTurso } = require('../config/database');
+const { tursoAll } = require('../config/tursoQuery');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,6 +9,17 @@ const router = express.Router();
 // Obtener secciones de un evento (sin asientos — se cargan por sección bajo demanda)
 router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
   try {
+    const eventoId = Number(req.params.eventoId);
+
+    if (useTurso) {
+      const secciones = await tursoAll(
+        `SELECT id, nombre, precio, color, capacidad, evento_id, activo
+         FROM secciones WHERE evento_id = ? AND activo = 1 ORDER BY nombre ASC`,
+        [eventoId]
+      );
+      return res.json({ secciones });
+    }
+
     const secciones = await Seccion.findAll({
       where: { evento_id: req.params.eventoId, activo: true },
       attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo'],

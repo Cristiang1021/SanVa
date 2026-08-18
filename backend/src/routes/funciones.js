@@ -1,9 +1,95 @@
 const express = require('express');
 const { Evento, Funcion, Venta, Asiento, Seccion } = require('../models');
+const { useTurso } = require('../config/database');
+const { tursoAll, tursoGet } = require('../config/tursoQuery');
 const { authMiddleware, requireAdmin, requireVendedor } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
 const router = express.Router();
+
+const SQL_ASIENTOS_SECCION = `
+  SELECT seccion_id, COUNT(*) AS total
+  FROM asientos
+  WHERE seccion_id IN (SELECT id FROM secciones WHERE evento_id = ? AND activo = 1)
+  GROUP BY seccion_id
+`;
+
+// Pantalla admin secciones: función + secciones en una sola petición (Turso HTTP)
+router.get('/:id/admin-setup', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (useTurso) {
+      const funcion = await tursoGet(
+        `SELECT id, evento_id, fecha_hora, lugar, activo
+         FROM funciones WHERE id = ? LIMIT 1`,
+        [id]
+      );
+      if (!funcion) {
+        return res.status(404).json({ error: 'Función no encontrada.' });
+      }
+
+      const [secciones, conteos] = await Promise.all([
+        tursoAll(
+          `SELECT id, nombre, precio, color, capacidad, evento_id, activo
+           FROM secciones WHERE evento_id = ? AND activo = 1 ORDER BY nombre ASC`,
+          [funcion.evento_id]
+        ),
+        tursoAll(SQL_ASIENTOS_SECCION, [funcion.evento_id]),
+      ]);
+
+      const conteoPorSeccion = Object.fromEntries(
+        conteos.map((c) => [c.seccion_id, Number(c.total)])
+      );
+
+      return res.json({
+        funcion,
+        secciones: secciones.map((s) => ({
+          ...s,
+          asientos_count: conteoPorSeccion[s.id] || 0,
+        })),
+      });
+    }
+
+    const funcion = await Funcion.findByPk(id, {
+      attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo'],
+    });
+    if (!funcion) {
+      return res.status(404).json({ error: 'Función no encontrada.' });
+    }
+
+    const secciones = await Seccion.findAll({
+      where: { evento_id: funcion.evento_id, activo: true },
+      attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo'],
+      order: [['nombre', 'ASC']],
+    });
+
+    const seccionIds = secciones.map((s) => s.id);
+    let conteoPorSeccion = {};
+    if (seccionIds.length) {
+      const rows = await Asiento.findAll({
+        attributes: ['seccion_id', [Asiento.sequelize.fn('COUNT', '*'), 'total']],
+        where: { seccion_id: seccionIds },
+        group: ['seccion_id'],
+        raw: true,
+      });
+      conteoPorSeccion = Object.fromEntries(
+        rows.map((r) => [r.seccion_id, Number(r.total)])
+      );
+    }
+
+    res.json({
+      funcion,
+      secciones: secciones.map((s) => ({
+        ...s.toJSON(),
+        asientos_count: conteoPorSeccion[s.id] || 0,
+      })),
+    });
+  } catch (error) {
+    console.error('Error admin-setup función:', error);
+    res.status(500).json({ error: 'Error al cargar datos de la función.' });
+  }
+});
 
 // Obtener funciones de un evento
 router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
@@ -41,6 +127,64 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Obtener estado de asientos para una función (ligero: sin cargar 384 asientos de golpe)
 router.get('/:id/estado', authMiddleware, async (req, res) => {
   try {
+    const id = Number(req.params.id);
+
+    if (useTurso) {
+      const funcion = await tursoGet(
+        `SELECT f.id, f.evento_id, f.fecha_hora, f.lugar, f.activo, e.nombre AS evento_nombre
+         FROM funciones f
+         JOIN eventos e ON e.id = f.evento_id
+         WHERE f.id = ? LIMIT 1`,
+        [id]
+      );
+
+      if (!funcion) {
+        return res.status(404).json({ error: 'Función no encontrada.' });
+      }
+
+      const [secciones, vendidosRow, totalRow] = await Promise.all([
+        tursoAll(
+          `SELECT id, nombre, precio, color, capacidad
+           FROM secciones WHERE evento_id = ? AND activo = 1 ORDER BY nombre ASC`,
+          [funcion.evento_id]
+        ),
+        tursoGet(
+          `SELECT COUNT(*) AS total FROM ventas WHERE funcion_id = ?`,
+          [id]
+        ),
+        tursoGet(
+          `SELECT COUNT(*) AS total FROM asientos
+           WHERE seccion_id IN (
+             SELECT id FROM secciones WHERE evento_id = ? AND activo = 1
+           )`,
+          [funcion.evento_id]
+        ),
+      ]);
+
+      const vendidosCount = Number(vendidosRow?.total || 0);
+      const totalAsientos = Number(totalRow?.total || 0);
+
+      return res.json({
+        funcion: {
+          id: funcion.id,
+          evento_id: funcion.evento_id,
+          fecha_hora: funcion.fecha_hora,
+          lugar: funcion.lugar,
+          activo: funcion.activo,
+          evento: { id: funcion.evento_id, nombre: funcion.evento_nombre },
+        },
+        secciones,
+        estadisticas: {
+          total: totalAsientos,
+          vendidos: vendidosCount,
+          disponibles: totalAsientos - vendidosCount,
+          ocupados: totalAsientos
+            ? Math.round((vendidosCount / totalAsientos) * 100)
+            : 0,
+        },
+      });
+    }
+
     const funcion = await Funcion.findByPk(req.params.id, {
       attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo'],
       include: [

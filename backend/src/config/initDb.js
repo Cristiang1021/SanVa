@@ -1,4 +1,5 @@
 const { sequelize, useTurso } = require('./database');
+const { tursoGet } = require('./tursoQuery');
 const { Op } = require('sequelize');
 const { Usuario, ConfiguracionSmtp, Evento } = require('../models');
 const { parseImagenBase64 } = require('../utils/imagen');
@@ -121,7 +122,7 @@ const inicializarDB = async () => {
     // Turso ya inicializado — atajo rápido (sin sync ni migraciones repetidas)
     if (useTurso) {
       try {
-        const yaListo = await Usuario.findByPk(1);
+        const yaListo = await tursoGet('SELECT id FROM usuarios WHERE id = 1 LIMIT 1');
         if (yaListo) {
           if (!tursoMigracionImagenHecha) {
             await migrarEsquemaEventosImagen();

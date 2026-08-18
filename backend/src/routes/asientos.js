@@ -1,5 +1,6 @@
 const express = require('express');
 const { Seccion, Asiento } = require('../models');
+const { useTurso } = require('../config/database');
 const { authMiddleware, requireAdmin, requireVendedor } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
@@ -27,7 +28,44 @@ async function liberarReservasExpiradas(whereExtra = {}) {
 // Obtener asientos de una sección
 router.get('/seccion/:seccionId', authMiddleware, async (req, res) => {
   try {
-    await liberarReservasExpiradas({ seccion_id: req.params.seccionId });
+    const seccionId = Number(req.params.seccionId);
+
+    if (useTurso) {
+      const { tursoExecute, tursoAll } = require('../config/tursoQuery');
+
+      // Limpieza en segundo plano — no bloquea la respuesta
+      tursoExecute(
+        `UPDATE asientos
+         SET estado = 'disponible', reservado_por = NULL, reservado_hasta = NULL
+         WHERE seccion_id = ? AND estado = 'reservado'
+           AND reservado_hasta < datetime('now')`,
+        [seccionId]
+      ).catch((err) => console.warn('cleanup reservas:', err.message));
+
+      const asientos = await tursoAll(
+        `SELECT id, seccion_id, fila, numero, posicion_x, posicion_y,
+          CASE
+            WHEN estado = 'reservado' AND reservado_hasta < datetime('now') THEN 'disponible'
+            ELSE estado
+          END AS estado,
+          CASE
+            WHEN estado = 'reservado' AND reservado_hasta >= datetime('now') THEN reservado_por
+            ELSE NULL
+          END AS reservado_por,
+          CASE
+            WHEN estado = 'reservado' AND reservado_hasta >= datetime('now') THEN reservado_hasta
+            ELSE NULL
+          END AS reservado_hasta
+         FROM asientos
+         WHERE seccion_id = ?
+         ORDER BY fila ASC, numero ASC`,
+        [seccionId]
+      );
+
+      return res.json({ asientos });
+    }
+
+    await liberarReservasExpiradas({ seccion_id: seccionId });
 
     const asientos = await Asiento.findAll({
       where: { seccion_id: req.params.seccionId },

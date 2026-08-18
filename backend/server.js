@@ -54,16 +54,20 @@ let dbInitPromise = null;
 
 const initDatabase = () => {
   if (!dbInitPromise) {
-    dbInitPromise = sequelize
-      .authenticate()
-      .then(() => {
-        console.log(useTurso ? '✓ Conexión a Turso establecida' : '✓ Conexión a SQLite local establecida');
-        return inicializarDB();
-      })
-      .catch((err) => {
-        dbInitPromise = null;
-        throw err;
-      });
+    dbInitPromise = (async () => {
+      if (useTurso) {
+        const { tursoGet } = require('./src/config/tursoQuery');
+        await tursoGet('SELECT 1 AS ok');
+        console.log('✓ Conexión a Turso establecida (HTTP)');
+      } else {
+        await sequelize.authenticate();
+        console.log('✓ Conexión a SQLite local establecida');
+      }
+      return inicializarDB();
+    })().catch((err) => {
+      dbInitPromise = null;
+      throw err;
+    });
   }
   return dbInitPromise;
 };

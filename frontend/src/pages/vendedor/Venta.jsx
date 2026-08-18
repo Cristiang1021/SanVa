@@ -67,7 +67,7 @@ export default function VendedorVenta() {
   useEffect(() => {
     if (selectedSeccionId && mapView === 'seats') {
       fetchAsientos(selectedSeccionId);
-      const poll = setInterval(() => fetchAsientos(selectedSeccionId, true), 5000);
+      const poll = setInterval(() => fetchAsientos(selectedSeccionId, true), 10000);
       return () => clearInterval(poll);
     }
   }, [selectedSeccionId, mapView]);

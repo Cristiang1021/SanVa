@@ -5,6 +5,7 @@ const API_URL = `${getApiOrigin()}/api`;
 
 const client = axios.create({
   baseURL: API_URL,
+  timeout: 28000,
   headers: {
     'Content-Type': 'application/json',
     // ngrok free muestra un interstitial HTML que rompe el API en el navegador
