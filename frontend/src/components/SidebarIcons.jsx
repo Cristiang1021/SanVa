@@ -76,6 +76,24 @@ export function IconSettings(props) {
   );
 }
 
+export function IconMenu(props) {
+  return (
+    <svg {...base} {...props}>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+    </svg>
+  );
+}
+
+export function IconClose(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
 export function IconChevronLeft(props) {
   return (
     <svg {...base} {...props}>

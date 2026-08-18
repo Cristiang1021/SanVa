@@ -1,39 +1,15 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const { Evento, Seccion, Funcion } = require('../models');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 const { inicializarTeatro } = require('../../scripts/inicializar-teatro');
+const { parseImagenBase64 } = require('../utils/imagen');
 
 const router = express.Router();
 
-const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `evento-${Date.now()}${ext}`);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Solo se permiten imágenes.'));
-    }
-    cb(null, true);
-  }
-});
-
-function imagenPublica(req, filename) {
-  return `/uploads/${filename}`;
+function imagenDesdeBody(body) {
+  if (!body?.imagen_base64) return undefined;
+  if (body.imagen_base64 === '' || body.imagen_base64 === null) return null;
+  return parseImagenBase64(body.imagen_base64);
 }
 
 // Obtener todos los eventos
@@ -75,9 +51,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Crear evento (solo admin)
-router.post('/', authMiddleware, requireAdmin, upload.single('imagen'), async (req, res) => {
+router.post('/', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const { nombre, descripcion, fecha_unica, hora_unica } = req.body;
+    const { nombre, descripcion, fecha_unica, hora_unica, imagen_base64 } = req.body;
 
     if (!nombre) {
       return res.status(400).json({ error: 'El nombre del evento es requerido.' });
@@ -92,8 +68,8 @@ router.post('/', authMiddleware, requireAdmin, upload.single('imagen'), async (r
       hora_unica: fecha_unica ? hora : null
     };
 
-    if (req.file) {
-      data.imagen_url = imagenPublica(req, req.file.filename);
+    if (imagen_base64 !== undefined) {
+      data.imagen_url = imagenDesdeBody(req.body);
     }
 
     const evento = await Evento.create(data);
@@ -118,7 +94,9 @@ router.post('/', authMiddleware, requireAdmin, upload.single('imagen'), async (r
     res.status(201).json({ message: 'Evento creado correctamente', evento: eventoCompleto });
   } catch (error) {
     console.error('Error al crear evento:', error);
-    res.status(500).json({ error: error.message || 'Error al crear evento.' });
+    res.status(error.message?.includes('imagen') ? 400 : 500).json({
+      error: error.message || 'Error al crear evento.'
+    });
   }
 });
 
@@ -145,7 +123,7 @@ router.post('/:id/inicializar', authMiddleware, requireAdmin, async (req, res) =
 });
 
 // Actualizar evento (solo admin)
-router.put('/:id', authMiddleware, requireAdmin, upload.single('imagen'), async (req, res) => {
+router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const evento = await Evento.findByPk(req.params.id);
 
@@ -153,7 +131,7 @@ router.put('/:id', authMiddleware, requireAdmin, upload.single('imagen'), async 
       return res.status(404).json({ error: 'Evento no encontrado.' });
     }
 
-    const { nombre, descripcion, activo, fecha_unica, hora_unica } = req.body;
+    const { nombre, descripcion, activo, fecha_unica, hora_unica, imagen_base64 } = req.body;
     const updates = {};
 
     if (nombre !== undefined) updates.nombre = nombre;
@@ -166,8 +144,8 @@ router.put('/:id', authMiddleware, requireAdmin, upload.single('imagen'), async 
       updates.hora_unica = hora_unica || null;
     }
 
-    if (req.file) {
-      updates.imagen_url = imagenPublica(req, req.file.filename);
+    if (imagen_base64 !== undefined) {
+      updates.imagen_url = imagenDesdeBody(req.body);
     }
 
     await evento.update(updates);
@@ -175,7 +153,9 @@ router.put('/:id', authMiddleware, requireAdmin, upload.single('imagen'), async 
     res.json({ message: 'Evento actualizado correctamente', evento });
   } catch (error) {
     console.error('Error al actualizar evento:', error);
-    res.status(500).json({ error: error.message || 'Error al actualizar evento.' });
+    res.status(error.message?.includes('imagen') ? 400 : 500).json({
+      error: error.message || 'Error al actualizar evento.'
+    });
   }
 });
 
