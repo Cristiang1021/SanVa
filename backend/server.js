@@ -35,6 +35,32 @@ app.use(sanitizeBody);
 app.use('/api', apiLimiter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+let dbInitPromise = null;
+
+const initDatabase = () => {
+  if (!dbInitPromise) {
+    dbInitPromise = sequelize
+      .authenticate()
+      .then(() => {
+        console.log(useTurso ? '✓ Conexión a Turso establecida' : '✓ Conexión a SQLite local establecida');
+        return inicializarDB();
+      });
+  }
+  return dbInitPromise;
+};
+
+if (isServerless) {
+  app.use(async (req, res, next) => {
+    try {
+      await initDatabase();
+      next();
+    } catch (err) {
+      console.error('✗ Error al conectar con la base de datos:', err);
+      res.status(503).json({ error: 'Base de datos no disponible.' });
+    }
+  });
+}
+
 app.use('/api/auth', authRoutes);
 app.use('/api/eventos', eventoRoutes);
 app.use('/api/secciones', seccionRoutes);
@@ -60,31 +86,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-let dbInitPromise = null;
-
-const initDatabase = () => {
-  if (!dbInitPromise) {
-    dbInitPromise = sequelize
-      .authenticate()
-      .then(() => {
-        console.log(useTurso ? '✓ Conexión a Turso establecida' : '✓ Conexión a SQLite local establecida');
-        return inicializarDB();
-      });
-  }
-  return dbInitPromise;
-};
-
-if (isServerless) {
-  app.use(async (req, res, next) => {
-    try {
-      await initDatabase();
-      next();
-    } catch (err) {
-      console.error('✗ Error al conectar con la base de datos:', err);
-      res.status(503).json({ error: 'Base de datos no disponible.' });
-    }
-  });
-} else {
+if (!isServerless) {
   initDatabase()
     .then(() => {
       app.listen(PORT, () => {

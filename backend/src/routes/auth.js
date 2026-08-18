@@ -29,7 +29,11 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Usuario y contraseña son requeridos.' });
     }
 
-    const usuario = await Usuario.findOne({ where: { username } });
+    const usuario = await Usuario.findOne({
+      where: {
+        [Op.or]: [{ username }, { email: username }],
+      },
+    });
 
     // Verificar si cuenta está bloqueada
     if (usuario && usuario.bloqueado_hasta && usuario.bloqueado_hasta > new Date()) {
