@@ -44,6 +44,10 @@ const initDatabase = () => {
       .then(() => {
         console.log(useTurso ? '✓ Conexión a Turso establecida' : '✓ Conexión a SQLite local establecida');
         return inicializarDB();
+      })
+      .catch((err) => {
+        dbInitPromise = null;
+        throw err;
       });
   }
   return dbInitPromise;

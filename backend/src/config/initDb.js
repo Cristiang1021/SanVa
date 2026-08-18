@@ -1,4 +1,5 @@
-const { sequelize, Usuario, ConfiguracionSmtp } = require('../models');
+const { sequelize, useTurso } = require('./database');
+const { Usuario, ConfiguracionSmtp } = require('../models');
 const crypto = require('crypto');
 
 const inicializarDB = async () => {
@@ -6,9 +7,13 @@ const inicializarDB = async () => {
     console.log('Inicializando base de datos...');
 
     await sequelize.sync();
-    await Usuario.sync({ alter: true });
-    if (ConfiguracionSmtp) {
-      await ConfiguracionSmtp.sync({ alter: true });
+
+    // ALTER TABLE no es fiable en Turso/libSQL remoto
+    if (!useTurso) {
+      await Usuario.sync({ alter: true });
+      if (ConfiguracionSmtp) {
+        await ConfiguracionSmtp.sync({ alter: true });
+      }
     }
     console.log('✓ Modelos sincronizados');
 
