@@ -1,0 +1,37 @@
+# Dependencias
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Variables de entorno (nunca subir secretos)
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Base de datos local
+*.sqlite
+*.sqlite-journal
+backend/database.sqlite
+
+# Subidas locales (efímeras en Vercel)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Build
+frontend/dist/
+dist/
+
+# Logs y sistema
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Turso CLI local
+.turso/
+
+# Archivos de diseño / pruebas (opcional)
+croquis/
