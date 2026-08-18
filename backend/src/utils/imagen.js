@@ -55,19 +55,36 @@ function toNodeBuffer(data) {
   }
   if (typeof data === 'string') {
     if (data.startsWith('data:')) return parseImagenBase64(data).buffer;
-    return Buffer.from(data, 'base64');
+    // BLOB de Turso/libsql a veces llega como base64
+    if (/^[A-Za-z0-9+/=\s]+$/.test(data) && data.length > 64) {
+      try {
+        const buf = Buffer.from(data.replace(/\s/g, ''), 'base64');
+        if (buf.length > 0) return buf;
+      } catch {
+        /* seguir */
+      }
+    }
+    return Buffer.from(data, 'latin1');
   }
   if (data.type === 'Buffer' && Array.isArray(data.data)) {
     return Buffer.from(data.data);
   }
-  return Buffer.from(data);
+  if (Array.isArray(data)) {
+    return Buffer.from(data);
+  }
+  try {
+    return Buffer.from(data);
+  } catch {
+    return null;
+  }
 }
 
 function serializarEvento(evento) {
   const json = evento.toJSON();
+  const tieneImagen = Boolean(json.imagen_mime || json.imagen_data);
   delete json.imagen_data;
 
-  if (json.imagen_mime) {
+  if (tieneImagen) {
     json.imagen_url = `/api/eventos/${evento.id}/imagen`;
   } else if (typeof json.imagen_url === 'string' && json.imagen_url.startsWith('data:')) {
     json.imagen_url = `/api/eventos/${evento.id}/imagen`;

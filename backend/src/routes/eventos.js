@@ -1,5 +1,7 @@
 const express = require('express');
 const { Evento, Seccion, Funcion } = require('../models');
+const { useTurso } = require('../config/database');
+const { getTursoClient } = require('../config/tursoClient');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 const { inicializarTeatro } = require('../../scripts/inicializar-teatro');
 const { imagenDesdeBody, serializarEvento, parseImagenBase64, toNodeBuffer } = require('../utils/imagen');
@@ -16,12 +18,40 @@ const LIST_INCLUDES = [
   { model: Funcion, as: 'funciones', attributes: ['id', 'fecha_hora', 'lugar'] },
 ];
 
+const cargarImagenEvento = async (id) => {
+  if (useTurso) {
+    const client = getTursoClient();
+    const result = await client.execute({
+      sql: `SELECT id, imagen_data, imagen_mime, imagen_url, activo
+            FROM eventos WHERE id = ? AND activo = 1 LIMIT 1`,
+      args: [Number(id)],
+    });
+    if (!result.rows.length) return null;
+
+    const row = result.rows[0];
+    const col = (name) => {
+      const i = result.columns.indexOf(name);
+      return i >= 0 ? row[i] : undefined;
+    };
+
+    return {
+      id: col('id'),
+      activo: col('activo'),
+      imagen_data: col('imagen_data'),
+      imagen_mime: col('imagen_mime'),
+      imagen_url: col('imagen_url'),
+    };
+  }
+
+  return Evento.unscoped().findByPk(id, {
+    attributes: ['id', 'imagen_data', 'imagen_mime', 'imagen_url', 'activo'],
+  });
+};
+
 // Imagen binaria del evento (público: las etiquetas <img> no envían JWT)
 router.get('/:id/imagen', async (req, res) => {
   try {
-    const evento = await Evento.unscoped().findByPk(req.params.id, {
-      attributes: ['id', 'imagen_data', 'imagen_mime', 'imagen_url', 'activo'],
-    });
+    const evento = await cargarImagenEvento(req.params.id);
 
     if (!evento || !evento.activo) {
       return res.status(404).json({ error: 'Imagen no encontrada.' });
