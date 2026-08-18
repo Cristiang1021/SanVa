@@ -32,6 +32,7 @@ Thumbs.db
 
 # Turso CLI local
 .turso/
+backend/src/scripts/turso-init.sql
 
 # Archivos de diseño / pruebas (opcional)
 croquis/

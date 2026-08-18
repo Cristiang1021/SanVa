@@ -65,6 +65,19 @@ const inicializarDB = async () => {
   try {
     console.log('Inicializando base de datos...');
 
+    // Turso ya inicializado manualmente o en deploy anterior
+    if (useTurso) {
+      try {
+        const yaListo = await Usuario.findByPk(1);
+        if (yaListo) {
+          console.log('✓ Turso ya inicializado (superadmin id:1)');
+          return;
+        }
+      } catch {
+        // Tabla ausente — continuar con init completa
+      }
+    }
+
     await repararEsquemaTurso();
     await sequelize.sync();
 
