@@ -20,6 +20,11 @@ dotenv.config();
 const app = express();
 const isServerless = Boolean(process.env.VERCEL);
 
+// Vercel envía X-Forwarded-For; express-rate-limit lo exige con trust proxy
+if (isServerless) {
+  app.set('trust proxy', 1);
+}
+
 const corsOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || '')
   .split(',')
   .map((o) => o.trim())
