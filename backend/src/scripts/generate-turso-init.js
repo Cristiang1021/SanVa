@@ -65,7 +65,7 @@ CREATE TABLE eventos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre VARCHAR(100) NOT NULL,
   descripcion TEXT,
-  imagen_url VARCHAR(500),
+  imagen_url TEXT,
   fecha_unica DATE,
   hora_unica VARCHAR(5),
   activo TINYINT(1) DEFAULT 1,

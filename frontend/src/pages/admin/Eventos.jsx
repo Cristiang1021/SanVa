@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getEventos, createEvento, updateEvento, deleteEvento, inicializarTeatro, mediaUrl } from '../../api';
 import Modal from '../../components/Modal';
 import FechaUnicaPicker from '../../components/FechaUnicaPicker';
+import { fileToDataUrl } from '../../utils/imagen';
 
 const EMPTY_FORM = {
   nombre: '',
@@ -11,6 +12,7 @@ const EMPTY_FORM = {
   fecha_unica: '',
   hora_unica: '20:00',
   imagen: null,
+  imagen_base64: null,
 };
 
 function formatFechaUnica(evento) {
@@ -62,6 +64,7 @@ export default function AdminEventos() {
         fecha_unica: evento.fecha_unica || '',
         hora_unica: evento.hora_unica || '20:00',
         imagen: null,
+        imagen_base64: null,
       });
       setPreviewUrl(mediaUrl(evento.imagen_url));
     } else {
@@ -72,28 +75,35 @@ export default function AdminEventos() {
     setModalOpen(true);
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFormData({ ...formData, imagen: file });
-    setPreviewUrl(URL.createObjectURL(file));
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setFormData({ ...formData, imagen: file, imagen_base64: dataUrl });
+      setPreviewUrl(dataUrl);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Error al procesar la imagen');
+    }
   };
 
-  const buildFormData = () => {
-    const fd = new FormData();
-    fd.append('nombre', formData.nombre);
-    fd.append('descripcion', formData.descripcion || '');
+  const buildPayload = () => {
+    const payload = {
+      nombre: formData.nombre,
+      descripcion: formData.descripcion || '',
+    };
     if (formData.fecha_unica_activa && formData.fecha_unica && formData.hora_unica) {
-      fd.append('fecha_unica', formData.fecha_unica);
-      fd.append('hora_unica', formData.hora_unica);
+      payload.fecha_unica = formData.fecha_unica;
+      payload.hora_unica = formData.hora_unica;
     } else {
-      fd.append('fecha_unica', '');
-      fd.append('hora_unica', '');
+      payload.fecha_unica = '';
+      payload.hora_unica = '';
     }
-    if (formData.imagen) {
-      fd.append('imagen', formData.imagen);
+    if (formData.imagen_base64) {
+      payload.imagen_base64 = formData.imagen_base64;
     }
-    return fd;
+    return payload;
   };
 
   const handleSave = async (e) => {
@@ -103,7 +113,7 @@ export default function AdminEventos() {
       return;
     }
     try {
-      const payload = buildFormData();
+      const payload = buildPayload();
       if (editingId) {
         await updateEvento(editingId, payload);
       } else {
@@ -147,11 +157,11 @@ export default function AdminEventos() {
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold text-ink">Eventos</h1>
+      <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-bold text-ink sm:text-4xl">Eventos</h1>
         <button
           onClick={() => handleOpenModal()}
-          className="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-dark transition font-600"
+          className="w-full rounded-md bg-primary px-6 py-2.5 font-600 text-white transition hover:bg-primary-dark sm:w-auto"
         >
           + Nuevo Evento
         </button>
@@ -209,22 +219,22 @@ export default function AdminEventos() {
                       {inicializando === evento.id ? 'Inicializando...' : 'Inicializar Teatro'}
                     </button>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                       onClick={() => handleOpenModal(evento)}
-                      className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition text-sm font-600"
+                      className="flex-1 rounded px-3 py-2.5 text-sm font-600 text-blue-700 transition hover:bg-blue-200 bg-blue-100"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => navigate(`/admin/funciones/${evento.id}`)}
-                      className="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded hover:bg-green-200 transition text-sm font-600"
+                      className="flex-1 rounded px-3 py-2.5 text-sm font-600 text-green-700 transition hover:bg-green-200 bg-green-100"
                     >
                       Funciones
                     </button>
                     <button
                       onClick={() => handleDelete(evento.id)}
-                      className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-600"
+                      className="flex-1 rounded px-3 py-2.5 text-sm font-600 text-red-700 transition hover:bg-red-200 bg-red-100"
                     >
                       Eliminar
                     </button>
@@ -242,7 +252,7 @@ export default function AdminEventos() {
         onClose={() => setModalOpen(false)}
         size="lg"
       >
-        <form onSubmit={handleSave} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <form onSubmit={handleSave} className="space-y-4">
           <div>
             <label className="block text-sm font-600 text-ink mb-2">Nombre *</label>
             <input
@@ -295,17 +305,17 @@ export default function AdminEventos() {
             onHoraChange={(hora_unica) => setFormData({ ...formData, hora_unica })}
           />
 
-          <div className="flex gap-3 justify-end pt-2 sticky bottom-0 bg-white pb-1">
+          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-gray-100 bg-white px-4 pt-3 sm:-mx-6 sm:flex-row sm:justify-end sm:gap-3 sm:px-6">
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="px-6 py-2 text-body border border-gray-300 rounded-md hover:bg-gray-50 transition font-600"
+              className="w-full rounded-md border border-gray-300 px-6 py-2.5 font-600 text-body transition hover:bg-gray-50 sm:w-auto"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition font-600"
+              className="w-full rounded-md bg-primary px-6 py-2.5 font-600 text-white transition hover:bg-primary-dark sm:w-auto"
             >
               {editingId ? 'Actualizar' : 'Crear'}
             </button>

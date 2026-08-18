@@ -5,7 +5,7 @@ const API_ORIGIN = getApiOrigin();
 
 export const mediaUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
+  if (path.startsWith('data:') || path.startsWith('http')) return path;
   return `${API_ORIGIN}${path}`;
 };
 

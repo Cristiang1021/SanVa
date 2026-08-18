@@ -16,7 +16,7 @@ const Evento = sequelize.define('Evento', {
     allowNull: true
   },
   imagen_url: {
-    type: DataTypes.STRING(500),
+    type: DataTypes.TEXT,
     allowNull: true
   },
   fecha_unica: {
