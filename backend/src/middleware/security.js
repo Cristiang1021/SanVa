@@ -4,7 +4,9 @@ const { sanitizeString } = require('../utils/security');
 
 const helmetMiddleware = helmet({
   contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  // Permite <img src="api/.../imagen"> desde el frontend (origen distinto en dev)
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 });
 
 const apiLimiter = rateLimit({

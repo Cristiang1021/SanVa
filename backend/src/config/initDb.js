@@ -127,9 +127,14 @@ const inicializarDB = async () => {
     await sequelize.sync();
     await migrarEsquemaEventosImagen();
 
+    // SQLite deja tablas *_backup de alters fallidos; hay que borrarlas
+    // o CREATE TABLE IF NOT EXISTS reutiliza el esquema viejo y explota.
+    await sequelize.query("DROP TABLE IF EXISTS eventos_backup");
+    await sequelize.query("DROP TABLE IF EXISTS usuarios_backup");
+    await sequelize.query("DROP TABLE IF EXISTS configuracion_smtp_backup");
+
     if (!useTurso) {
       await Usuario.sync({ alter: true });
-      await Evento.sync({ alter: true });
       if (ConfiguracionSmtp) {
         await ConfiguracionSmtp.sync({ alter: true });
       }
