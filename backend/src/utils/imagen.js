@@ -46,13 +46,32 @@ function imagenDesdeBody(body) {
   };
 }
 
+function toNodeBuffer(data) {
+  if (!data) return null;
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  if (typeof data === 'string') {
+    if (data.startsWith('data:')) return parseImagenBase64(data).buffer;
+    return Buffer.from(data, 'base64');
+  }
+  if (data.type === 'Buffer' && Array.isArray(data.data)) {
+    return Buffer.from(data.data);
+  }
+  return Buffer.from(data);
+}
+
 function serializarEvento(evento) {
   const json = evento.toJSON();
   delete json.imagen_data;
 
   if (json.imagen_mime) {
     json.imagen_url = `/api/eventos/${evento.id}/imagen`;
-  } else if (!json.imagen_url) {
+  } else if (typeof json.imagen_url === 'string' && json.imagen_url.startsWith('data:')) {
+    json.imagen_url = `/api/eventos/${evento.id}/imagen`;
+  } else if (!json.imagen_url || json.imagen_url.startsWith('/uploads/')) {
     json.imagen_url = null;
   }
 
@@ -64,5 +83,6 @@ module.exports = {
   parseImagenBase64,
   imagenDesdeBody,
   serializarEvento,
+  toNodeBuffer,
   MAX_BYTES,
 };

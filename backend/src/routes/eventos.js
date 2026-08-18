@@ -2,7 +2,7 @@ const express = require('express');
 const { Evento, Seccion, Funcion } = require('../models');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 const { inicializarTeatro } = require('../../scripts/inicializar-teatro');
-const { imagenDesdeBody, serializarEvento, parseImagenBase64 } = require('../utils/imagen');
+const { imagenDesdeBody, serializarEvento, parseImagenBase64, toNodeBuffer } = require('../utils/imagen');
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ const LIST_INCLUDES = [
 // Imagen binaria del evento (público: las etiquetas <img> no envían JWT)
 router.get('/:id/imagen', async (req, res) => {
   try {
-    const evento = await Evento.scope('conImagen').findByPk(req.params.id, {
+    const evento = await Evento.unscoped().findByPk(req.params.id, {
       attributes: ['id', 'imagen_data', 'imagen_mime', 'imagen_url', 'activo'],
     });
 
@@ -27,17 +27,19 @@ router.get('/:id/imagen', async (req, res) => {
       return res.status(404).json({ error: 'Imagen no encontrada.' });
     }
 
-    if (evento.imagen_data) {
+    const bytes = toNodeBuffer(evento.imagen_data);
+    if (bytes && bytes.length) {
       res.set('Content-Type', evento.imagen_mime || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=86400');
-      return res.send(Buffer.from(evento.imagen_data));
+      res.set('Content-Length', String(bytes.length));
+      return res.end(bytes);
     }
 
     if (evento.imagen_url?.startsWith('data:')) {
       const parsed = parseImagenBase64(evento.imagen_url);
       res.set('Content-Type', parsed.mime);
       res.set('Cache-Control', 'public, max-age=86400');
-      return res.send(parsed.buffer);
+      return res.end(parsed.buffer);
     }
 
     return res.status(404).json({ error: 'Imagen no encontrada.' });

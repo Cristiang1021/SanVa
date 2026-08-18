@@ -23,10 +23,18 @@ const authLimiter = rateLimit({
   message: { error: 'Demasiados intentos. Intenta más tarde.' }
 });
 
+const SKIP_SANITIZE = new Set([
+  'imagen_base64',
+  'password',
+  'passwordActual',
+  'passwordNueva',
+  'password_hash',
+]);
+
 const sanitizeBody = (req, res, next) => {
   if (req.body && typeof req.body === 'object') {
     for (const [key, value] of Object.entries(req.body)) {
-      if (typeof value === 'string') {
+      if (typeof value === 'string' && !SKIP_SANITIZE.has(key)) {
         req.body[key] = sanitizeString(value, 2000);
       }
     }
