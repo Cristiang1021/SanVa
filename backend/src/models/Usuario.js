@@ -26,8 +26,11 @@ const Usuario = sequelize.define('Usuario', {
     allowNull: false
   },
   rol: {
-    type: DataTypes.ENUM('superadmin', 'admin', 'vendedor'),
-    defaultValue: 'vendedor'
+    type: DataTypes.STRING(20),
+    defaultValue: 'vendedor',
+    validate: {
+      isIn: [['superadmin', 'admin', 'vendedor']],
+    },
   },
   nombre_completo: {
     type: DataTypes.STRING(100),

@@ -2,13 +2,72 @@ const { sequelize, useTurso } = require('./database');
 const { Usuario, ConfiguracionSmtp } = require('../models');
 const crypto = require('crypto');
 
+const TABLAS_APP = [
+  'ventas',
+  'asientos',
+  'funciones',
+  'secciones',
+  'eventos',
+  'configuracion_smtp',
+  'usuarios',
+];
+
+const COLUMNAS_USUARIO = [
+  'nombre_completo',
+  'activo',
+  'intentos_fallidos',
+  'email_verificado',
+  'created_at',
+  'updated_at',
+];
+
+const dropTablasApp = async () => {
+  await sequelize.query('PRAGMA foreign_keys = OFF');
+  for (const tabla of TABLAS_APP) {
+    await sequelize.query(`DROP TABLE IF EXISTS "${tabla}"`);
+  }
+  await sequelize.query('PRAGMA foreign_keys = ON');
+  console.log('✓ Tablas de app eliminadas (reset esquema Turso)');
+};
+
+const esquemaUsuariosIncompleto = async () => {
+  const [tablas] = await sequelize.query(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'"
+  );
+  if (!tablas.length) return false;
+
+  const [columnas] = await sequelize.query('PRAGMA table_info(usuarios)');
+  const nombres = columnas.map((c) => c.name);
+  return COLUMNAS_USUARIO.some((col) => !nombres.includes(col));
+};
+
+const repararEsquemaTurso = async () => {
+  if (!useTurso) return;
+
+  let superadmin = null;
+
+  try {
+    superadmin = await Usuario.findByPk(1);
+  } catch {
+    // Tabla ausente o esquema roto
+  }
+
+  if (superadmin) return;
+
+  const incompleto = await esquemaUsuariosIncompleto();
+  if (incompleto) {
+    console.log('⚠ Esquema usuarios incompleto — recreando tablas...');
+    await dropTablasApp();
+  }
+};
+
 const inicializarDB = async () => {
   try {
     console.log('Inicializando base de datos...');
 
+    await repararEsquemaTurso();
     await sequelize.sync();
 
-    // ALTER TABLE no es fiable en Turso/libSQL remoto
     if (!useTurso) {
       await Usuario.sync({ alter: true });
       if (ConfiguracionSmtp) {
@@ -25,7 +84,7 @@ const inicializarDB = async () => {
 
       if (!password && enProduccion) {
         throw new Error(
-          'SUPERADMIN_PASSWORD es obligatorio en producción. Define la variable en el entorno.'
+          'SUPERADMIN_PASSWORD es obligatorio en producción. Añádela en Vercel → Environment Variables.'
         );
       }
 
@@ -58,7 +117,7 @@ const inicializarDB = async () => {
 
     console.log('✓ Inicialización completa');
   } catch (error) {
-    console.error('✗ Error al inicializar base de datos:', error);
+    console.error('✗ Error al inicializar base de datos:', error.message);
     throw error;
   }
 };
