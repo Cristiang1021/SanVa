@@ -4,19 +4,13 @@ const { authMiddleware, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Obtener secciones de un evento
+// Obtener secciones de un evento (sin asientos — se cargan por sección bajo demanda)
 router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
   try {
     const secciones = await Seccion.findAll({
       where: { evento_id: req.params.eventoId, activo: true },
-      include: [
-        {
-          model: Asiento,
-          as: 'asientos',
-          attributes: ['id', 'fila', 'numero', 'posicion_x', 'posicion_y', 'estado']
-        }
-      ],
-      order: [['nombre', 'ASC']]
+      attributes: ['id', 'nombre', 'precio', 'color', 'capacidad', 'evento_id', 'activo'],
+      order: [['nombre', 'ASC']],
     });
     res.json({ secciones });
   } catch (error) {

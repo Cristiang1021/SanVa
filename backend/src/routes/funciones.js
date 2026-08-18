@@ -38,71 +38,51 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Obtener estado de asientos para una función
+// Obtener estado de asientos para una función (ligero: sin cargar 384 asientos de golpe)
 router.get('/:id/estado', authMiddleware, async (req, res) => {
   try {
     const funcion = await Funcion.findByPk(req.params.id, {
+      attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo'],
       include: [
         {
           model: Evento,
           as: 'evento',
-          include: [
-            {
-              model: Seccion,
-              as: 'secciones',
-              where: { activo: true },
-              include: [
-                {
-                  model: Asiento,
-                  as: 'asientos',
-                  attributes: ['id', 'fila', 'numero', 'posicion_x', 'posicion_y', 'estado', 'reservado_por', 'reservado_hasta']
-                }
-              ]
-            }
-          ]
-        }
-      ]
+          attributes: ['id', 'nombre'],
+        },
+      ],
     });
 
     if (!funcion) {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
-    // Obtener ventas para esta función
-    const ventas = await Venta.findAll({
-      where: { funcion_id: funcion.id },
-      attributes: ['asiento_id']
-    });
+    const [secciones, vendidosCount] = await Promise.all([
+      Seccion.findAll({
+        where: { evento_id: funcion.evento_id, activo: true },
+        attributes: ['id', 'nombre', 'precio', 'color', 'capacidad'],
+        order: [['nombre', 'ASC']],
+      }),
+      Venta.count({ where: { funcion_id: funcion.id } }),
+    ]);
 
-    const asientosVendidos = new Set(ventas.map(v => v.asiento_id));
+    const seccionIds = secciones.map((s) => s.id);
+    const totalAsientos = seccionIds.length
+      ? await Asiento.count({ where: { seccion_id: seccionIds } })
+      : 0;
 
-    // Construir respuesta con estado actualizado
-    const secciones = funcion.evento.secciones.map(seccion => ({
-      id: seccion.id,
-      nombre: seccion.nombre,
-      precio: seccion.precio,
-      color: seccion.color,
-      capacidad: seccion.capacidad,
-      asientos: seccion.asientos.map(asiento => ({
-        ...asiento.toJSON(),
-        estado: asientosVendidos.has(asiento.id) ? 'vendido' : asiento.estado
-      }))
-    }));
-
-    // Calcular estadísticas
-    const totalAsientos = secciones.reduce((sum, s) => sum + s.asientos.length, 0);
-    const asientosVendidosCount = asientosVendidos.size;
-    const asientosDisponibles = totalAsientos - asientosVendidosCount;
+    const seccionesJson = secciones.map((s) => s.toJSON());
 
     res.json({
       funcion,
-      secciones,
+      secciones: seccionesJson,
       estadisticas: {
         total: totalAsientos,
-        vendidos: asientosVendidosCount,
-        disponibles: asientosDisponibles,
-        ocupados: Math.round((asientosVendidosCount / totalAsientos) * 100) || 0
-      }
+        vendidos: vendidosCount,
+        disponibles: totalAsientos - vendidosCount,
+        ocupados: totalAsientos
+          ? Math.round((vendidosCount / totalAsientos) * 100)
+          : 0,
+      },
     });
   } catch (error) {
     console.error('Error al obtener estado:', error);

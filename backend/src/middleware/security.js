@@ -14,7 +14,8 @@ const apiLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes. Intenta más tarde.' }
+  message: { error: 'Demasiadas solicitudes. Intenta más tarde.' },
+  skip: (req) => req.path === '/health',
 });
 
 const authLimiter = rateLimit({

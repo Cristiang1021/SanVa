@@ -71,14 +71,21 @@ const migrarEsquemaEventosImagen = async () => {
 
   const [columnas] = await sequelize.query('PRAGMA table_info(eventos)');
   const nombres = columnas.map((c) => c.name);
+  const teniaImagenData = nombres.includes('imagen_data');
+  const teniaImagenMime = nombres.includes('imagen_mime');
 
-  if (!nombres.includes('imagen_data')) {
+  if (!teniaImagenData) {
     await sequelize.query('ALTER TABLE eventos ADD COLUMN imagen_data BLOB');
     console.log('✓ Columna eventos.imagen_data (BLOB) añadida');
   }
-  if (!nombres.includes('imagen_mime')) {
+  if (!teniaImagenMime) {
     await sequelize.query('ALTER TABLE eventos ADD COLUMN imagen_mime VARCHAR(50)');
     console.log('✓ Columna eventos.imagen_mime añadida');
+  }
+
+  // Producción Turso: columnas ya existen — no escanear legacy en cada cold start
+  if (teniaImagenData && teniaImagenMime) {
+    return;
   }
 
   const legacy = await Evento.unscoped().findAll({
@@ -105,17 +112,21 @@ const migrarEsquemaEventosImagen = async () => {
   }
 };
 
+let tursoMigracionImagenHecha = false;
+
 const inicializarDB = async () => {
   try {
     console.log('Inicializando base de datos...');
 
-    // Turso ya inicializado manualmente o en deploy anterior
+    // Turso ya inicializado — atajo rápido (sin sync ni migraciones repetidas)
     if (useTurso) {
       try {
         const yaListo = await Usuario.findByPk(1);
         if (yaListo) {
-          await migrarEsquemaEventosImagen();
-          console.log('✓ Turso ya inicializado (superadmin id:1)');
+          if (!tursoMigracionImagenHecha) {
+            await migrarEsquemaEventosImagen();
+            tursoMigracionImagenHecha = true;
+          }
           return;
         }
       } catch {
@@ -126,6 +137,7 @@ const inicializarDB = async () => {
     await repararEsquemaTurso();
     await sequelize.sync();
     await migrarEsquemaEventosImagen();
+    tursoMigracionImagenHecha = true;
 
     // SQLite deja tablas *_backup de alters fallidos; hay que borrarlas
     // o CREATE TABLE IF NOT EXISTS reutiliza el esquema viejo y explota.

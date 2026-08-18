@@ -37,6 +37,16 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '8mb' }));
 app.use(sanitizeBody);
+
+// Health sin rate limit ni init de BD
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'API funcionando',
+    turso: useTurso,
+  });
+});
+
 app.use('/api', apiLimiter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -79,14 +89,6 @@ app.use('/api/ventas', ventaRoutes);
 app.use('/api/reportes', reporteRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/configuracion', configuracionRoutes);
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'API funcionando',
-    turso: useTurso,
-  });
-});
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
