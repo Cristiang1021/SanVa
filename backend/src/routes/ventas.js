@@ -198,10 +198,20 @@ router.get('/funcion/:funcionId', authMiddleware, async (req, res) => {
 });
 
 // Obtener ventas por vendedor
-router.get('/vendedor/:usuarioId', authMiddleware, async (req, res) => {
+// Admin/superadmin: cualquier vendedor. Vendedor: solo las propias.
+router.get('/vendedor/:usuarioId', authMiddleware, requireVendedor, async (req, res) => {
   try {
+    const usuarioId = Number(req.params.usuarioId);
+    if (!Number.isFinite(usuarioId)) {
+      return res.status(400).json({ error: 'ID de vendedor inválido.' });
+    }
+
+    if (!esPanelAdmin(req.usuario) && usuarioId !== Number(req.usuario.id)) {
+      return res.status(403).json({ error: 'Solo puedes consultar tus propias ventas.' });
+    }
+
     const ventas = await Venta.findAll({
-      where: { usuario_id: req.params.usuarioId },
+      where: { usuario_id: usuarioId },
       include: [
         {
           model: Funcion,
@@ -253,7 +263,8 @@ router.get('/mis-ventas', authMiddleware, requireVendedor, async (req, res) => {
   }
 });
 
-// Cancelar venta (solo admin)
+// Cancelar venta
+// Admin/superadmin: cualquier venta. Vendedor: solo las propias.
 router.delete('/:id', authMiddleware, requireVendedor, async (req, res) => {
   const transaction = await sequelize.transaction();
 
@@ -265,10 +276,12 @@ router.delete('/:id', authMiddleware, requireVendedor, async (req, res) => {
       return res.status(404).json({ error: 'Venta no encontrada.' });
     }
 
-    // Admin/superadmin puede cancelar cualquier venta; vendedor solo las suyas
-    if (!esPanelAdmin(req.usuario) && venta.usuario_id !== req.usuario.id) {
+    const esPropia = Number(venta.usuario_id) === Number(req.usuario.id);
+    if (!esPanelAdmin(req.usuario) && !esPropia) {
       await transaction.rollback();
-      return res.status(403).json({ error: 'No puedes cancelar esta venta.' });
+      return res.status(403).json({
+        error: 'No puedes cancelar ventas de otros vendedores. Solo las tuyas.',
+      });
     }
 
     // Liberar el asiento

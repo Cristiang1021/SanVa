@@ -5,7 +5,7 @@ export default function VendedorMisVentas() {
   const [ventas, setVentas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('todas');
+  const [cancelandoId, setCancelandoId] = useState(null);
 
   useEffect(() => {
     fetchMisVentas();
@@ -24,18 +24,29 @@ export default function VendedorMisVentas() {
     }
   };
 
-  const handleCancelarVenta = async (ventaId) => {
-    if (confirm('¿Estás seguro de que deseas cancelar esta venta?')) {
-      try {
-        await cancelarVenta(ventaId);
-        await fetchMisVentas();
-      } catch (err) {
-        setError(err.response?.data?.error || 'Error al cancelar venta');
-      }
+  const handleCancelarVenta = async (venta) => {
+    const asiento = venta.asiento
+      ? `${venta.asiento.fila ?? ''}${venta.asiento.numero ?? ''}`
+      : '—';
+    const msg =
+      `¿Cancelar esta venta?\n\n` +
+      `Cliente: ${venta.cliente_nombre}\n` +
+      `Asiento: ${asiento}\n\n` +
+      `Solo puedes cancelar tus propias ventas. El asiento quedará disponible.`;
+
+    if (!confirm(msg)) return;
+
+    try {
+      setCancelandoId(venta.id);
+      setError('');
+      await cancelarVenta(venta.id);
+      await fetchMisVentas();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al cancelar venta');
+    } finally {
+      setCancelandoId(null);
     }
   };
-
-  const ventasFiltradas = ventas;
 
   const totalVentas = ventas.reduce((sum, v) => sum + (v.precio_unitario || 0), 0);
 
@@ -43,11 +54,15 @@ export default function VendedorMisVentas() {
 
   return (
     <div className="w-full">
-      <h1 className="text-4xl font-bold text-ink mb-8">Mis Ventas</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl font-bold text-ink sm:text-4xl">Mis Ventas</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Puedes cancelar únicamente las ventas que registraste tú.
+        </p>
+      </div>
 
       {error && <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
-      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <p className="text-gray-600 text-sm font-600 mb-2">Total Vendido</p>
@@ -65,8 +80,7 @@ export default function VendedorMisVentas() {
         </div>
       </div>
 
-      {/* Tabla de ventas */}
-      {ventasFiltradas.length > 0 ? (
+      {ventas.length > 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -83,7 +97,7 @@ export default function VendedorMisVentas() {
                 </tr>
               </thead>
               <tbody>
-                {ventasFiltradas.map((venta) => (
+                {ventas.map((venta) => (
                   <tr key={venta.id} className="border-b border-gray-200 hover:bg-gray-50">
                     <td className="px-6 py-4 text-body font-600">{venta.cliente_nombre}</td>
                     <td className="px-6 py-4 text-body">{venta.funcion?.evento?.nombre}</td>
@@ -108,10 +122,12 @@ export default function VendedorMisVentas() {
                     </td>
                     <td className="px-6 py-4 flex justify-center">
                       <button
-                        onClick={() => handleCancelarVenta(venta.id)}
-                        className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-600"
+                        type="button"
+                        onClick={() => handleCancelarVenta(venta)}
+                        disabled={cancelandoId === venta.id}
+                        className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-600 disabled:opacity-50"
                       >
-                        Cancelar
+                        {cancelandoId === venta.id ? 'Cancelando…' : 'Cancelar'}
                       </button>
                     </td>
                   </tr>
