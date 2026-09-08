@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getEventos, createEvento, updateEvento, deleteEvento, inicializarTeatro, mediaUrl } from '../../api';
 import Modal from '../../components/Modal';
 import FechaUnicaPicker from '../../components/FechaUnicaPicker';
+import { useConfirmDialog } from '../../components/useConfirmDialog.jsx';
 import { fileToDataUrl } from '../../utils/imagen';
 
 const EMPTY_FORM = {
@@ -36,6 +37,7 @@ export default function AdminEventos() {
   const [inicializando, setInicializando] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     fetchEventos();
@@ -128,28 +130,37 @@ export default function AdminEventos() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('¿Estás seguro de que deseas eliminar este evento?')) {
-      try {
-        await deleteEvento(id);
-        await fetchEventos();
-      } catch (err) {
-        setError(err.response?.data?.error || 'Error al eliminar evento');
-      }
+    const ok = await askConfirm({
+      title: 'Eliminar evento',
+      confirmLabel: 'Sí, eliminar',
+      message: '¿Estás seguro de que deseas eliminar este evento?',
+    });
+    if (!ok) return;
+    try {
+      await deleteEvento(id);
+      await fetchEventos();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar evento');
     }
   };
 
   const handleInicializarTeatro = async (id) => {
-    if (confirm('¿Inicializar teatro con 4 secciones y todos los asientos según los croquis?')) {
-      try {
-        setInicializando(id);
-        await inicializarTeatro(id);
-        await fetchEventos();
-        setError('');
-      } catch (err) {
-        setError(err.response?.data?.error || 'Error al inicializar teatro');
-      } finally {
-        setInicializando(null);
-      }
+    const ok = await askConfirm({
+      title: 'Inicializar teatro',
+      confirmLabel: 'Sí, inicializar',
+      variant: 'primary',
+      message: '¿Inicializar teatro con 4 secciones y todos los asientos según los croquis?',
+    });
+    if (!ok) return;
+    try {
+      setInicializando(id);
+      await inicializarTeatro(id);
+      await fetchEventos();
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al inicializar teatro');
+    } finally {
+      setInicializando(null);
     }
   };
 
@@ -335,6 +346,7 @@ export default function AdminEventos() {
           </div>
         </form>
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

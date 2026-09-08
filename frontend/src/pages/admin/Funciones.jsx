@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFunciones, getEvento, createFuncion, updateFuncion, deleteFuncion } from '../../api';
 import Modal from '../../components/Modal';
+import { useConfirmDialog } from '../../components/useConfirmDialog.jsx';
 
 export default function AdminFunciones() {
   const { eventoId } = useParams();
@@ -12,6 +13,7 @@ export default function AdminFunciones() {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const { askConfirm, confirmDialog } = useConfirmDialog();
   const [formData, setFormData] = useState({
     fecha_hora: '',
     lugar: '',
@@ -77,13 +79,17 @@ export default function AdminFunciones() {
   };
 
   const handleDelete = async (id) => {
-    if (confirm('¿Estás seguro de que deseas eliminar esta función?')) {
-      try {
-        await deleteFuncion(id);
-        await fetchData();
-      } catch (err) {
-        setError(err.response?.data?.error || 'Error al eliminar función');
-      }
+    const ok = await askConfirm({
+      title: 'Eliminar función',
+      confirmLabel: 'Sí, eliminar',
+      message: '¿Estás seguro de que deseas eliminar esta función?',
+    });
+    if (!ok) return;
+    try {
+      await deleteFuncion(id);
+      await fetchData();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar función');
     }
   };
 
@@ -207,6 +213,7 @@ export default function AdminFunciones() {
           </div>
         </form>
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

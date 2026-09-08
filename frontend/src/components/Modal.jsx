@@ -33,7 +33,8 @@ export default function Modal({ isOpen, title, children, onClose, size = 'md' })
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-50 hover:text-gray-600"
+            disabled={!onClose}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-50 hover:text-gray-600 disabled:opacity-40"
             aria-label="Cerrar"
           >
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

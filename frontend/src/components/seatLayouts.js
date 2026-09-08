@@ -23,8 +23,23 @@ function byNumero(asientos) {
   return map;
 }
 
+function byFilaNumero(asientos) {
+  const map = new Map();
+  for (const a of asientos) {
+    const f = String(a.fila || '').toUpperCase();
+    map.set(`${f}:${Number(a.numero)}`, a);
+  }
+  return map;
+}
+
 function place(map, numero, x, y, r = 12) {
   const asiento = map.get(numero);
+  if (!asiento) return null;
+  return { x, y, r, asiento };
+}
+
+function placeFN(map, fila, numero, x, y, r = 11) {
+  const asiento = map.get(`${String(fila).toUpperCase()}:${Number(numero)}`);
   if (!asiento) return null;
   return { x, y, r, asiento };
 }
@@ -43,52 +58,128 @@ function row(map, numeros, x0, y, gap) {
     .filter(Boolean);
 }
 
+/** Números descendentes inclusive (ej. 12→1) */
+function desc(from, to) {
+  const out = [];
+  for (let n = from; n >= to; n -= 1) out.push(n);
+  return out;
+}
+
 /**
- * Platea: grilla rectangular A→N (modo cuadrado).
- * A cerca del escenario (arriba).
+ * Coloca una secuencia [fila, numero] de izq→der, centrada en CX.
+ * `aislesBefore` = índices donde insertar hueco extra (pasillo/columna).
+ */
+function placeCenteredRow(map, specs, y, gapX, seatR, aislesBefore = []) {
+  const aisleGap = gapX * 1.55;
+  const aisleSet = new Set(aislesBefore);
+  let totalW = 0;
+  for (let i = 0; i < specs.length; i += 1) {
+    if (i > 0) totalW += aisleSet.has(i) ? aisleGap : gapX;
+  }
+  let x = CX - totalW / 2;
+  const positions = [];
+  specs.forEach(([fila, numero], i) => {
+    if (i > 0) x += aisleSet.has(i) ? aisleGap : gapX;
+    const p = placeFN(map, fila, numero, x, y, seatR);
+    if (p) positions.push(p);
+  });
+  return positions;
+}
+
+function filaDesc(fila, from, to) {
+  return desc(from, to).map((n) => [fila, n]);
+}
+
+/**
+ * Platea — croquis real:
+ * - Fila A: A12–A07 · N03–N01 · A06–A01
+ * - B–L: filas normales (números altos a la izquierda)
+ * - Línea M: M06–M04 · N09–N04 · M03–M01
+ * - Fondo: N15–N13 · N12–N10
+ * La venta sigue siendo por asiento.id (fila+numero en BD).
  */
 export function layoutPlatea(asientos) {
-  const byFila = groupByFila(asientos);
-  const filas = Object.keys(byFila).sort((a, b) => a.localeCompare(b));
+  const map = byFilaNumero(asientos);
+  const gapX = 26;
+  const gapY = 30;
+  const seatR = 10;
+  const y0 = 96;
   const positions = [];
   const rowLabels = [];
+  const labelX = 52;
+  const labelXR = 748;
 
-  const maxSeats = Math.max(...filas.map((f) => byFila[f].length), 1);
-  const gapX = 28;
-  const gapY = 32;
-  const seatR = 11;
-  const gridW = (maxSeats - 1) * gapX;
-  const x0 = CX - gridW / 2;
-  const y0 = 100;
+  const pushLabels = (fila, y) => {
+    rowLabels.push({ fila, x: labelX, y });
+    rowLabels.push({ fila, x: labelXR, y });
+  };
 
-  filas.forEach((fila, rowIdx) => {
-    const seats = byFila[fila];
-    const n = seats.length;
-    const rowW = (n - 1) * gapX;
-    const rowX0 = CX - rowW / 2;
-    const y = y0 + rowIdx * gapY;
+  // A — con N01–N03 al centro
+  {
+    const y = y0;
+    const specs = [
+      ...filaDesc('A', 12, 7),
+      ...filaDesc('N', 3, 1),
+      ...filaDesc('A', 6, 1),
+    ];
+    positions.push(...placeCenteredRow(map, specs, y, gapX, seatR));
+    pushLabels('A', y);
+  }
 
-    seats.forEach((asiento, i) => {
-      positions.push({
-        x: n === 1 ? CX : rowX0 + i * gapX,
-        y,
-        asiento,
-        r: seatR,
-      });
-    });
+  const normalRows = [
+    ['B', 15],
+    ['C', 16],
+    ['D', 16],
+    ['E', 14],
+    ['F', 16],
+    ['G', 16],
+    ['H', 15],
+    ['I', 14],
+    ['J', 16],
+    ['K', 16],
+    ['L', 15],
+  ];
 
-    rowLabels.push({ fila, x: x0 - 28, y });
-    rowLabels.push({ fila, x: x0 + gridW + 28, y });
+  normalRows.forEach(([fila, max], idx) => {
+    const y = y0 + (idx + 1) * gapY;
+    positions.push(
+      ...placeCenteredRow(map, filaDesc(fila, max, 1), y, gapX, seatR)
+    );
+    pushLabels(fila, y);
   });
 
-  const height = y0 + filas.length * gapY + 80;
+  // Línea M + N04–N09 (pasillos laterales como en croquis)
+  {
+    const y = y0 + 12 * gapY;
+    const specs = [
+      ...filaDesc('M', 6, 4),
+      ...filaDesc('N', 9, 4),
+      ...filaDesc('M', 3, 1),
+    ];
+    // huecos antes del bloque N (índice 3) y antes de M derecha (índice 9)
+    positions.push(...placeCenteredRow(map, specs, y, gapX, seatR, [3, 9]));
+    pushLabels('M', y);
+  }
+
+  // Fondo N10–N15 en dos grupos
+  {
+    const y = y0 + 13 * gapY + 8;
+    const specs = [
+      ...filaDesc('N', 15, 13),
+      ...filaDesc('N', 12, 10),
+    ];
+    positions.push(...placeCenteredRow(map, specs, y, gapX, seatR, [3]));
+    pushLabels('N', y);
+  }
+
+  const height = y0 + 14 * gapY + 90;
 
   return {
-    viewBox: `0 0 800 ${Math.max(height, 560)}`,
+    viewBox: `0 0 800 ${Math.max(height, 620)}`,
     positions,
     rowLabels,
     stage: { x: 200, y: 16, w: 400, h: 44 },
-    footer: { text: 'PLATEA', sub: '' },
+    footer: { text: 'PLATEA', sub: 'A–M · N01–15' },
   };
 }
 

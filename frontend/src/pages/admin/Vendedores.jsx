@@ -9,6 +9,7 @@ import {
 } from '../../api';
 import Modal from '../../components/Modal';
 import PasswordRequirements from '../../components/PasswordRequirements';
+import { useConfirmDialog } from '../../components/useConfirmDialog.jsx';
 
 const EMPTY_FORM = {
   username: '',
@@ -28,6 +29,7 @@ export default function AdminVendedores() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [reenviandoId, setReenviandoId] = useState(null);
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     fetchVendedores();
@@ -122,7 +124,12 @@ export default function AdminVendedores() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Desactivar este vendedor?')) return;
+    const ok = await askConfirm({
+      title: 'Desactivar vendedor',
+      confirmLabel: 'Sí, desactivar',
+      message: '¿Desactivar este vendedor?',
+    });
+    if (!ok) return;
     try {
       await deleteVendedor(id);
       await fetchVendedores();
@@ -344,6 +351,7 @@ export default function AdminVendedores() {
           </div>
         </form>
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

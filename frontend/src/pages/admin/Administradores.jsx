@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import Modal from '../../components/Modal';
 import PasswordRequirements from '../../components/PasswordRequirements';
+import { useConfirmDialog } from '../../components/useConfirmDialog.jsx';
 
 const EMPTY_FORM = {
   username: '',
@@ -31,6 +32,7 @@ export default function AdminAdministradores() {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [reenviandoId, setReenviandoId] = useState(null);
+  const { askConfirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     if (isSuperAdmin) fetchAdmins();
@@ -129,7 +131,12 @@ export default function AdminAdministradores() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Desactivar este administrador?')) return;
+    const ok = await askConfirm({
+      title: 'Desactivar administrador',
+      confirmLabel: 'Sí, desactivar',
+      message: '¿Desactivar este administrador?',
+    });
+    if (!ok) return;
     try {
       await deleteVendedor(id);
       await fetchAdmins();
@@ -275,6 +282,7 @@ export default function AdminAdministradores() {
           </div>
         </form>
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

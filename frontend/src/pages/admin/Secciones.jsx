@@ -13,11 +13,13 @@ import {
 import Modal from '../../components/Modal';
 import SeatGrid from '../../components/SeatGrid';
 import SeatLegend from '../../components/SeatLegend';
+import { useConfirmDialog } from '../../components/useConfirmDialog.jsx';
 
 export default function AdminSecciones() {
   const { funcionId } = useParams();
   const navigate = useNavigate();
   const [funcion, setFuncion] = useState(null);
+  const { askConfirm, confirmDialog } = useConfirmDialog();
   const [secciones, setSecciones] = useState([]);
   const [asientos, setAsientos] = useState([]);
   const [selectedSeccionId, setSelectedSeccionId] = useState(null);
@@ -94,13 +96,17 @@ export default function AdminSecciones() {
   };
 
   const handleDeleteAsientos = async () => {
-    if (confirm('¿Estás seguro de que deseas eliminar todos los asientos de esta sección?')) {
-      try {
-        await deleteAsientosPorSeccion(selectedSeccionId);
-        setAsientos([]);
-      } catch (err) {
-        setError(err.response?.data?.error || 'Error al eliminar asientos');
-      }
+    const ok = await askConfirm({
+      title: 'Eliminar asientos',
+      confirmLabel: 'Sí, eliminar',
+      message: '¿Estás seguro de que deseas eliminar todos los asientos de esta sección?',
+    });
+    if (!ok) return;
+    try {
+      await deleteAsientosPorSeccion(selectedSeccionId);
+      setAsientos([]);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar asientos');
     }
   };
 
@@ -159,24 +165,29 @@ export default function AdminSecciones() {
   };
 
   const handleDeleteSeccion = async (seccionId, nombre) => {
-    if (confirm(`¿Eliminar sección "${nombre}"? Esto también eliminará todos los asientos asociados.`)) {
-      try {
-        // Primero eliminar los asientos de la sección
-        await deleteAsientosPorSeccion(seccionId);
-        // Después eliminar la sección (cambiarla a inactiva)
-        await updateSeccion(seccionId, { activo: false });
-        await fetchData();
-        setSelectedSeccionId(null);
-      } catch (err) {
-        setError(err.response?.data?.error || 'Error al eliminar sección');
-      }
+    const ok = await askConfirm({
+      title: 'Eliminar sección',
+      confirmLabel: 'Sí, eliminar',
+      message: `¿Eliminar sección "${nombre}"? Esto también eliminará todos los asientos asociados.`,
+    });
+    if (!ok) return;
+    try {
+      await deleteAsientosPorSeccion(seccionId);
+      await updateSeccion(seccionId, { activo: false });
+      await fetchData();
+      setSelectedSeccionId(null);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar sección');
     }
   };
 
   const handleRestaurarSeccion = async (seccion) => {
-    const ok = confirm(
-      `¿Restaurar "${seccion.nombre}" a su estado original?\n\nSe restablecerán nombre, precio, color y asientos de origen. Las ventas existentes se conservan.`
-    );
+    const ok = await askConfirm({
+      title: 'Restaurar sección',
+      confirmLabel: 'Sí, restaurar',
+      variant: 'primary',
+      message: `¿Restaurar "${seccion.nombre}" a su estado original?\n\nSe restablecerán nombre, precio, color y asientos de origen. Las ventas existentes se conservan.`,
+    });
     if (!ok) return;
 
     try {
@@ -474,6 +485,7 @@ export default function AdminSecciones() {
           </div>
         </form>
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

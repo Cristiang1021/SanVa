@@ -151,12 +151,17 @@ export default function SectionSeatMap({
   };
 
   const seatLabel = (asiento) => {
-    const prefix = (asiento.fila || '').toLowerCase();
-    if (prefix.length === 1 && /[a-z]/.test(prefix) && prefix !== 'p' && prefix !== 'v' && prefix !== 'z') {
-      return String(asiento.numero);
+    const fila = String(asiento.fila || '');
+    const prefix = fila.toLowerCase();
+    // Palcos: p01 / v01 / z01
+    if (prefix === 'p' || prefix === 'v' || prefix === 'z') {
+      return `${prefix}${String(asiento.numero).padStart(2, '0')}`;
     }
-    const p = prefix === 'p' || prefix === 'v' || prefix === 'z' ? prefix : 'p';
-    return `${p}${String(asiento.numero).padStart(2, '0')}`;
+    // Platea (A–N): mostrar letra+número — los N viven en varias líneas del croquis
+    if (prefix.length === 1 && /[a-z]/i.test(prefix)) {
+      return `${fila.toUpperCase()}${String(asiento.numero).padStart(2, '0')}`;
+    }
+    return `${fila}${asiento.numero}`;
   };
 
   return (
@@ -268,7 +273,7 @@ export default function SectionSeatMap({
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fill="#fff"
-                    fontSize={label.length > 3 ? 7 : 8}
+                    fontSize={label.length > 3 ? 6.5 : 7.5}
                     fontWeight="700"
                     style={{ pointerEvents: 'none' }}
                   >
