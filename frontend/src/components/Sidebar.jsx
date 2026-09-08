@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -81,17 +81,17 @@ export default function Sidebar({ mobileOpen = false, isMobile = false, onMobile
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-gray-200/90 bg-white transition-[transform,width] duration-200 ease-out ${
+      className={`fixed left-0 top-0 z-50 flex max-h-dvh min-h-0 flex-col border-r border-gray-200/90 bg-white transition-[transform,width] duration-200 ease-out ${
         isMobile
-          ? `w-[min(280px,88vw)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
+          ? `h-dvh w-[min(280px,88vw)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
           : collapsed
-            ? 'w-[72px]'
-            : 'w-[260px]'
+            ? 'h-screen w-[72px]'
+            : 'h-screen w-[260px]'
       }`}
       aria-hidden={isMobile && !mobileOpen}
     >
       <div
-        className={`flex min-h-[72px] items-center border-b border-gray-100 sm:min-h-[88px] ${
+        className={`flex shrink-0 items-center border-b border-gray-100 min-h-[72px] sm:min-h-[88px] ${
           showExpanded ? 'justify-between px-4 py-4' : 'justify-center px-2 py-4'
         }`}
       >
@@ -118,7 +118,7 @@ export default function Sidebar({ mobileOpen = false, isMobile = false, onMobile
         )}
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-4">
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-2 py-4">
         {isAdmin && (
           <>
             <NavItem to="/admin" label="Dashboard" icon={IconDashboard} collapsed={!showExpanded} end onNavigate={handleNavigate} />
@@ -139,23 +139,46 @@ export default function Sidebar({ mobileOpen = false, isMobile = false, onMobile
         )}
         <div className="my-3 border-t border-gray-100" />
         <NavItem to="/configuraciones" label="Configuraciones" icon={IconSettings} collapsed={!showExpanded} onNavigate={handleNavigate} />
-      </nav>
 
-      <div className="border-t border-gray-100 p-3">
-        {showExpanded && (
-          <div className="mb-3 flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-primary ring-1 ring-gray-200">
-              {iniciales(usuario.nombre_completo)}
+        {/* En móvil el logout va también en el scroll por si el teclado/chrome tapa el pie */}
+        {isMobile && (
+          <div className="mt-4 border-t border-gray-100 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="mb-3 flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-primary ring-1 ring-gray-200">
+                {iniciales(usuario.nombre_completo)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">{usuario.nombre_completo}</p>
+                <p className="text-xs capitalize text-gray-500">{usuario.rol}</p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink">{usuario.nombre_completo}</p>
-              <p className="text-xs capitalize text-gray-500">{usuario.rol}</p>
-            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-primary"
+            >
+              <IconLogOut className="shrink-0" />
+              <span>Cerrar sesión</span>
+            </button>
           </div>
         )}
+      </nav>
 
-        <div className={`flex gap-1 ${!showExpanded ? 'flex-col items-center' : ''}`}>
-          {!isMobile && (
+      {!isMobile && (
+        <div className="shrink-0 border-t border-gray-100 p-3">
+          {showExpanded && (
+            <div className="mb-3 flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-primary ring-1 ring-gray-200">
+                {iniciales(usuario.nombre_completo)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">{usuario.nombre_completo}</p>
+                <p className="text-xs capitalize text-gray-500">{usuario.rol}</p>
+              </div>
+            </div>
+          )}
+
+          <div className={`flex gap-1 ${!showExpanded ? 'flex-col items-center' : ''}`}>
             <button
               type="button"
               onClick={toggle}
@@ -165,21 +188,21 @@ export default function Sidebar({ mobileOpen = false, isMobile = false, onMobile
             >
               {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={logout}
-            className={`flex items-center gap-2 rounded-lg text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-primary ${
-              !showExpanded ? 'h-9 w-9 justify-center' : 'flex-1 px-3 py-2'
-            }`}
-            title="Cerrar sesión"
-          >
-            <IconLogOut className="shrink-0" />
-            {showExpanded && <span>Cerrar sesión</span>}
-          </button>
+            <button
+              type="button"
+              onClick={logout}
+              className={`flex items-center gap-2 rounded-lg text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-primary ${
+                !showExpanded ? 'h-9 w-9 justify-center' : 'flex-1 px-3 py-2'
+              }`}
+              title="Cerrar sesión"
+            >
+              <IconLogOut className="shrink-0" />
+              {showExpanded && <span>Cerrar sesión</span>}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

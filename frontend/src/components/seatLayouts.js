@@ -100,9 +100,9 @@ function filaDesc(fila, from, to) {
  */
 export function layoutPlatea(asientos) {
   const map = byFilaNumero(asientos);
-  const gapX = 26;
-  const gapY = 30;
-  const seatR = 10;
+  const gapX = 28;
+  const gapY = 32;
+  const seatR = 12;
   const y0 = 96;
   const positions = [];
   const rowLabels = [];

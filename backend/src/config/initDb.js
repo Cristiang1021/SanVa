@@ -209,10 +209,17 @@ const inicializarDB = async () => {
     await sequelize.query("DROP TABLE IF EXISTS configuracion_smtp_backup");
 
     if (!useTurso) {
-      await Usuario.sync({ alter: true });
-      await Seccion.sync({ alter: true });
-      if (ConfiguracionSmtp) {
-        await ConfiguracionSmtp.sync({ alter: true });
+      try {
+        await Usuario.sync({ alter: true });
+        await Seccion.sync({ alter: true });
+        if (ConfiguracionSmtp) {
+          await ConfiguracionSmtp.sync({ alter: true });
+        }
+      } catch (alterErr) {
+        // SQLite local a veces deja el esquema a medias tras un alter fallido
+        console.warn('⚠ sync alter falló en SQLite — recreando tablas de app:', alterErr.message);
+        await dropTablasApp();
+        await sequelize.sync({ force: true });
       }
     }
     console.log('✓ Modelos sincronizados');

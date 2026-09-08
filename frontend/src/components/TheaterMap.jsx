@@ -66,7 +66,7 @@ function seccionPorLayout(secciones, key) {
   return secciones.find((s) => sectionKey(s) === key) || null;
 }
 
-function LevelSelector({ secciones, selectedSeccionId, view, onSelect, onDeselect }) {
+function LevelSelector({ secciones, selectedSeccionId, view, onSelect, onDeselect, variant = 'side' }) {
   const levels = LEVEL_ORDER.map((key, idx) => {
     const seccion = secciones.find((s) => sectionKey(s) === key);
     return { num: idx + 1, seccion };
@@ -74,29 +74,40 @@ function LevelSelector({ secciones, selectedSeccionId, view, onSelect, onDeselec
 
   if (levels.length === 0) return null;
 
+  const btn = (num, seccion, active) => (
+    <button
+      key={seccion.id}
+      type="button"
+      title={active ? `${seccion.nombre} (ver mapa completo)` : seccion.nombre}
+      onClick={() => {
+        if (active) onDeselect?.();
+        else onSelect(seccion);
+      }}
+      className={`inline-flex h-10 min-w-10 items-center justify-center rounded-lg border text-sm font-bold transition sm:h-9 sm:w-9 sm:rounded-md ${
+        active
+          ? 'border-primary bg-primary text-white'
+          : 'border-gray-200 bg-white text-ink hover:border-primary'
+      }`}
+    >
+      {num}
+    </button>
+  );
+
+  if (variant === 'top') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {levels.map(({ num, seccion }) =>
+          btn(num, seccion, selectedSeccionId === seccion.id && view === 'seats')
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-1.5 pointer-events-auto">
-      {levels.map(({ num, seccion }) => {
-        const active = selectedSeccionId === seccion.id && view === 'seats';
-        return (
-          <button
-            key={seccion.id}
-            type="button"
-            title={active ? `${seccion.nombre} (tocar para ver mapa completo)` : seccion.nombre}
-            onClick={() => {
-              if (active) onDeselect?.();
-              else onSelect(seccion);
-            }}
-            className={`w-9 h-9 rounded-md text-sm font-bold transition border ${
-              active
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-ink border-gray-200 hover:border-primary'
-            }`}
-          >
-            {num}
-          </button>
-        );
-      })}
+    <div className="pointer-events-auto absolute right-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col gap-1.5 sm:flex">
+      {levels.map(({ num, seccion }) =>
+        btn(num, seccion, selectedSeccionId === seccion.id && view === 'seats')
+      )}
     </div>
   );
 }
@@ -237,19 +248,44 @@ export default function TheaterMap({
 
   return (
     <div className="space-y-3">
-      <div className="relative bg-[#020202] rounded-2xl overflow-hidden shadow-lg min-h-[460px]">
+      <div
+        className={`relative overflow-hidden rounded-2xl bg-[#020202] shadow-lg ${
+          inSeats ? 'min-h-0' : 'min-h-[380px] sm:min-h-[460px]'
+        }`}
+      >
+        {/* Desktop: niveles a la derecha */}
         <LevelSelector
           secciones={secciones}
           selectedSeccionId={selectedSeccionId}
           view={view}
           onSelect={goToSeccion}
           onDeselect={goOverview}
+          variant="side"
         />
 
         {inSeats ? (
-          <div className="pt-3 px-12 pb-16">
-            <div className="flex items-center justify-center mb-2">
-              <span className="text-sm font-semibold text-white bg-white/10 px-4 py-1.5 rounded-full">
+          <div className="px-2 pb-4 pt-3 sm:px-12 sm:pb-16">
+            <div className="mb-3 flex flex-col gap-2 sm:mb-2 sm:items-center">
+              {/* Móvil: niveles arriba, fuera del mapa */}
+              <div className="flex items-center justify-between gap-2 sm:hidden">
+                <LevelSelector
+                  secciones={secciones}
+                  selectedSeccionId={selectedSeccionId}
+                  view={view}
+                  onSelect={goToSeccion}
+                  onDeselect={goOverview}
+                  variant="top"
+                />
+                <button
+                  type="button"
+                  onClick={goOverview}
+                  className="shrink-0 rounded-lg bg-[#f5c518] px-3 py-2 text-xs font-bold text-ink"
+                >
+                  Mapa
+                </button>
+              </div>
+
+              <span className="self-center rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold text-white">
                 {selectedSeccion.nombre}
               </span>
             </div>
@@ -263,11 +299,12 @@ export default function TheaterMap({
               loading={loadingAsientos}
             />
 
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            {/* Desktop: botón inferior */}
+            <div className="absolute bottom-4 left-1/2 z-20 hidden -translate-x-1/2 sm:block">
               <button
                 type="button"
                 onClick={goOverview}
-                className="min-w-[200px] px-8 py-3 rounded-xl bg-[#f5c518] text-ink font-bold text-sm shadow-lg hover:bg-[#e6b800] transition"
+                className="min-w-[200px] rounded-xl bg-[#f5c518] px-8 py-3 text-sm font-bold text-ink shadow-lg transition hover:bg-[#e6b800]"
               >
                 Ver mapa completo
               </button>
@@ -282,9 +319,9 @@ export default function TheaterMap({
         )}
       </div>
 
-      <p className="text-xs text-gray-500 text-center">
+      <p className="text-center text-xs text-gray-500">
         {inSeats
-          ? 'Toca asientos verdes para agregarlos · Toca de nuevo para quitar · Ctrl+scroll para zoom'
+          ? 'Toca un asiento verde para agregarlo · Usa + para acercar si lo necesitas'
           : 'Elige una sección para ver y vender asientos'}
       </p>
     </div>
