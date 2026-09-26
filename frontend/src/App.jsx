@@ -71,7 +71,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowRoles={['admin', 'superadmin', 'vendedor']}>
             <Navigate
-              to={esPanelAdmin(usuario?.rol) ? '/admin/reportes?tab=entrada' : '/reportes'}
+              to={esPanelAdmin(usuario?.rol) ? '/admin/reportes' : '/reportes'}
               replace
             />
           </ProtectedRoute>
