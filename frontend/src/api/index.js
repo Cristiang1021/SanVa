@@ -142,7 +142,12 @@ export const getReporteVentas = (filters = {}) => {
   return client.get(`/reportes/ventas?${params}`);
 };
 
-export const getReporteRanking = () => client.get('/reportes/vendedores');
+export const getReporteRanking = (filters = {}) => {
+  const params = new URLSearchParams(
+    Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
+  ).toString();
+  return client.get(`/reportes/vendedores${params ? `?${params}` : ''}`);
+};
 
 export const getReporteEstadisticas = (funcionId) =>
   client.get(`/reportes/funcion/${funcionId}`);

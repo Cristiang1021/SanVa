@@ -25,7 +25,8 @@ export default function AdminReportes() {
   });
   const [reporteVentas, setReporteVentas] = useState(null);
   const [reporteRanking, setReporteRanking] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingVentas, setLoadingVentas] = useState(false);
+  const [loadingRanking, setLoadingRanking] = useState(false);
   const [error, setError] = useState('');
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -35,10 +36,32 @@ export default function AdminReportes() {
   const [funciones, setFunciones] = useState([]);
   const [descargando, setDescargando] = useState('');
   const [cancelandoKey, setCancelandoKey] = useState(null);
+  const [ventasLoadedFor, setVentasLoadedFor] = useState(null);
+  const [rankingLoadedFor, setRankingLoadedFor] = useState(null);
   const { askConfirm, confirmDialog } = useConfirmDialog();
 
+  const filtrosKey = useMemo(
+    () =>
+      JSON.stringify({
+        fechaInicio,
+        fechaFin,
+        eventoId,
+        funcionId,
+      }),
+    [fechaInicio, fechaFin, eventoId, funcionId]
+  );
+
+  const filtros = useMemo(
+    () => ({
+      ...(fechaInicio && { fecha_inicio: fechaInicio }),
+      ...(fechaFin && { fecha_fin: fechaFin }),
+      ...(eventoId && { evento_id: eventoId }),
+      ...(funcionId && { funcion_id: funcionId }),
+    }),
+    [fechaInicio, fechaFin, eventoId, funcionId]
+  );
+
   useEffect(() => {
-    fetchReportes();
     getEventos()
       .then((res) => setEventos(res.data.eventos || []))
       .catch(() => {});
@@ -55,41 +78,56 @@ export default function AdminReportes() {
       .catch(() => setFunciones([]));
   }, [eventoId]);
 
+  const fetchVentas = async (force = false) => {
+    if (!force && ventasLoadedFor === filtrosKey && reporteVentas) return;
+    try {
+      setLoadingVentas(true);
+      setError('');
+      const { data } = await getReporteVentas(filtros);
+      setReporteVentas(data);
+      setVentasLoadedFor(filtrosKey);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al cargar ventas');
+    } finally {
+      setLoadingVentas(false);
+    }
+  };
+
+  const fetchRanking = async (force = false) => {
+    if (!force && rankingLoadedFor === filtrosKey && reporteRanking) return;
+    try {
+      setLoadingRanking(true);
+      setError('');
+      const { data } = await getReporteRanking(filtros);
+      setReporteRanking(data);
+      setRankingLoadedFor(filtrosKey);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al cargar ranking');
+    } finally {
+      setLoadingRanking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'ventas') fetchVentas();
+    if (tab === 'ranking') fetchRanking();
+    // entrada: ListaEntradaPanel carga lo suyo; no bloquear con ventas/ranking
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- carga por pestaña
+  }, [tab]);
+
   const grupos = useMemo(
     () => agruparVentas(reporteVentas?.ventas || []),
     [reporteVentas]
   );
 
-  const fetchReportes = async (
-    inicio = fechaInicio,
-    fin = fechaFin,
-    ev = eventoId,
-    fn = funcionId
-  ) => {
-    try {
-      setLoading(true);
-      const filters = {
-        ...(inicio && { fecha_inicio: inicio }),
-        ...(fin && { fecha_fin: fin }),
-        ...(ev && { evento_id: ev }),
-        ...(fn && { funcion_id: fn }),
-      };
-      const [ventasRes, rankingRes] = await Promise.all([
-        getReporteVentas(filters),
-        getReporteRanking(),
-      ]);
-      setReporteVentas(ventasRes.data);
-      setReporteRanking(rankingRes.data);
-      setError('');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error al cargar reportes');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleFiltrar = () => {
-    fetchReportes(fechaInicio, fechaFin, eventoId, funcionId);
+    if (tab === 'ranking') {
+      fetchRanking(true);
+      setVentasLoadedFor(null);
+    } else {
+      fetchVentas(true);
+      setRankingLoadedFor(null);
+    }
   };
 
   const cancelarIds = async (ids, key) => {
@@ -99,10 +137,11 @@ export default function AdminReportes() {
       for (const id of ids) {
         await cancelarVenta(id);
       }
-      await fetchReportes();
+      await fetchVentas(true);
+      setRankingLoadedFor(null);
     } catch (err) {
       setError(err.response?.data?.error || 'Error al cancelar venta');
-      await fetchReportes();
+      await fetchVentas(true);
     } finally {
       setCancelandoKey(null);
     }
@@ -171,13 +210,6 @@ export default function AdminReportes() {
     );
   };
 
-  const filtros = {
-    ...(fechaInicio && { fecha_inicio: fechaInicio }),
-    ...(fechaFin && { fecha_fin: fechaFin }),
-    ...(eventoId && { evento_id: eventoId }),
-    ...(funcionId && { funcion_id: funcionId }),
-  };
-
   const handleDescargarVentas = async () => {
     setDescargando('ventas');
     setError('');
@@ -202,7 +234,9 @@ export default function AdminReportes() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Cargando reportes...</div>;
+  const loadingTab =
+    (tab === 'ventas' && loadingVentas && !reporteVentas) ||
+    (tab === 'ranking' && loadingRanking && !reporteRanking);
 
   return (
     <div className="w-full">
@@ -319,166 +353,183 @@ export default function AdminReportes() {
                 <button
                   type="button"
                   onClick={handleFiltrar}
-                  className="w-full rounded-md bg-primary px-6 py-2 font-600 text-white transition hover:bg-primary-dark"
+                  disabled={loadingVentas || loadingRanking}
+                  className="w-full rounded-md bg-primary px-6 py-2 font-600 text-white transition hover:bg-primary-dark disabled:bg-gray-400"
                 >
-                  Filtrar
+                  {loadingVentas || loadingRanking ? 'Filtrando…' : 'Filtrar'}
                 </button>
               </div>
             </div>
           </div>
 
-          {reporteVentas && (
-            <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="rounded-lg border border-gray-200 bg-white p-6">
-                <p className="mb-2 text-sm font-600 text-gray-600">Total Ventas</p>
-                <p className="text-4xl font-bold text-primary">
-                  ${reporteVentas.total?.toFixed(2) || '0.00'}
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  {reporteVentas.cantidad} asiento{reporteVentas.cantidad === 1 ? '' : 's'} ·{' '}
-                  {grupos.length} venta{grupos.length === 1 ? '' : 's'}
-                </p>
-              </div>
+          {loadingTab ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+              Cargando {tab === 'ranking' ? 'ranking' : 'ventas'}…
             </div>
-          )}
-
-          {grupos.length > 0 ? (
-            <div className="mb-8 overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-                <h2 className="text-xl font-bold text-ink">Ventas Registradas</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b border-gray-200 bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Cliente</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Vendedor</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Evento</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Función</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Asientos</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Pago</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Monto</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Fecha</th>
-                      <th className="px-6 py-3 text-center text-sm font-bold text-ink">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grupos.map((grupo) => {
-                      const multi = grupo.ventas.length > 1;
-                      const busyGroup = cancelandoKey === `group-${grupo.id}`;
-
-                      return (
-                        <tr key={grupo.id} className="border-b border-gray-200 hover:bg-gray-50">
-                          <td className="px-6 py-4 font-600 text-body">{grupo.cliente_nombre}</td>
-                          <td className="px-6 py-4 text-body">
-                            {grupo.vendedor?.nombre_completo || grupo.vendedor?.username || '—'}
-                          </td>
-                          <td className="px-6 py-4 text-body">{grupo.funcion?.evento?.nombre || '—'}</td>
-                          <td className="px-6 py-4 text-body">
-                            {grupo.funcion?.fecha_hora
-                              ? new Date(grupo.funcion.fecha_hora).toLocaleString()
-                              : '—'}
-                          </td>
+          ) : tab === 'ranking' ? (
+            reporteRanking?.ranking && reporteRanking.ranking.length > 0 ? (
+              <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                  <h2 className="text-xl font-bold text-ink">Ranking de Vendedores</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="border-b border-gray-200 bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-ink">Posición</th>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-ink">Vendedor</th>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-ink">Ventas</th>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-ink">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reporteRanking.ranking.map((item, index) => (
+                        <tr key={item.vendedor.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="px-6 py-4">
-                            <div className="flex flex-wrap gap-1.5">
-                              {grupo.ventas.map((venta) => {
-                                const busy = cancelandoKey === `seat-${venta.id}`;
-                                const label = seatLabelFromVenta(venta);
-                                return (
-                                  <button
-                                    key={venta.id}
-                                    type="button"
-                                    aria-label={`Cancelar asiento ${label}`}
-                                    disabled={!!cancelandoKey}
-                                    onClick={() =>
-                                      handleCancelarAsiento(venta, grupo.cliente_nombre)
-                                    }
-                                    className="group inline-flex items-center gap-1 rounded border border-gray-200 bg-white py-0.5 pl-2 pr-1 font-mono text-sm text-body transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-                                  >
-                                    <span>{busy ? '…' : label}</span>
-                                    <span
-                                      className="flex h-5 w-5 items-center justify-center rounded text-gray-400 group-hover:text-red-600"
-                                      aria-hidden
-                                    >
-                                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                      </svg>
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+                              {index + 1}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-sm capitalize text-body">
-                            {grupo.metodo_pago || '—'}
-                            {grupo.referencia_pago && (
-                              <span className="block font-mono text-xs text-gray-500">
-                                Ref: {grupo.referencia_pago}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 font-bold text-body">${grupo.total.toFixed(2)}</td>
-                          <td className="px-6 py-4 text-body">
-                            {new Date(grupo.fecha_venta).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleCancelarGrupo(grupo)}
-                              disabled={!!cancelandoKey}
-                              className="rounded bg-red-100 px-3 py-1 text-sm font-600 text-red-700 transition hover:bg-red-200 disabled:opacity-50"
-                            >
-                              {busyGroup ? 'Cancelando…' : multi ? 'Cancelar venta' : 'Cancelar'}
-                            </button>
+                          <td className="px-6 py-4 text-body">{item.vendedor.nombre_completo}</td>
+                          <td className="px-6 py-4 text-body">{item.cantidad_ventas}</td>
+                          <td className="px-6 py-4 font-bold text-body">
+                            ${item.total_vendido?.toFixed(2)}
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          ) : tab === 'ventas' ? (
-            <div className="mb-8 rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
-              No hay ventas con esos filtros.
-            </div>
-          ) : null}
+            ) : (
+              <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+                No hay vendedores para mostrar.
+              </div>
+            )
+          ) : (
+            <>
+              {reporteVentas && (
+                <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="rounded-lg border border-gray-200 bg-white p-6">
+                    <p className="mb-2 text-sm font-600 text-gray-600">Total Ventas</p>
+                    <p className="text-4xl font-bold text-primary">
+                      ${reporteVentas.total?.toFixed(2) || '0.00'}
+                    </p>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {reporteVentas.cantidad} asiento{reporteVentas.cantidad === 1 ? '' : 's'} ·{' '}
+                      {grupos.length} venta{grupos.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
-          {reporteRanking?.ranking && reporteRanking.ranking.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-                <h2 className="text-xl font-bold text-ink">Ranking de Vendedores</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b border-gray-200 bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Posición</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Vendedor</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Ventas</th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-ink">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reporteRanking.ranking.map((item, index) => (
-                      <tr key={item.vendedor.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
-                            {index + 1}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-body">{item.vendedor.nombre_completo}</td>
-                        <td className="px-6 py-4 text-body">{item.cantidad_ventas}</td>
-                        <td className="px-6 py-4 font-bold text-body">
-                          ${item.total_vendido?.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
+              {loadingVentas && reporteVentas ? (
+                <div className="mb-4 text-sm text-gray-500">Actualizando…</div>
+              ) : null}
+
+              {grupos.length > 0 ? (
+                <div className="mb-8 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                    <h2 className="text-xl font-bold text-ink">Ventas Registradas</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="border-b border-gray-200 bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Cliente</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Vendedor</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Evento</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Función</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Asientos</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Pago</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Monto</th>
+                          <th className="px-6 py-3 text-left text-sm font-bold text-ink">Fecha</th>
+                          <th className="px-6 py-3 text-center text-sm font-bold text-ink">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grupos.map((grupo) => {
+                          const multi = grupo.ventas.length > 1;
+                          const busyGroup = cancelandoKey === `group-${grupo.id}`;
+
+                          return (
+                            <tr key={grupo.id} className="border-b border-gray-200 hover:bg-gray-50">
+                              <td className="px-6 py-4 font-600 text-body">{grupo.cliente_nombre}</td>
+                              <td className="px-6 py-4 text-body">
+                                {grupo.vendedor?.nombre_completo || grupo.vendedor?.username || '—'}
+                              </td>
+                              <td className="px-6 py-4 text-body">{grupo.funcion?.evento?.nombre || '—'}</td>
+                              <td className="px-6 py-4 text-body">
+                                {grupo.funcion?.fecha_hora
+                                  ? new Date(grupo.funcion.fecha_hora).toLocaleString()
+                                  : '—'}
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {grupo.ventas.map((venta) => {
+                                    const busy = cancelandoKey === `seat-${venta.id}`;
+                                    const label = seatLabelFromVenta(venta);
+                                    return (
+                                      <button
+                                        key={venta.id}
+                                        type="button"
+                                        aria-label={`Cancelar asiento ${label}`}
+                                        disabled={!!cancelandoKey}
+                                        onClick={() =>
+                                          handleCancelarAsiento(venta, grupo.cliente_nombre)
+                                        }
+                                        className="group inline-flex items-center gap-1 rounded border border-gray-200 bg-white py-0.5 pl-2 pr-1 font-mono text-sm text-body transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                                      >
+                                        <span>{busy ? '…' : label}</span>
+                                        <span
+                                          className="flex h-5 w-5 items-center justify-center rounded text-gray-400 group-hover:text-red-600"
+                                          aria-hidden
+                                        >
+                                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm capitalize text-body">
+                                {grupo.metodo_pago || '—'}
+                                {grupo.referencia_pago && (
+                                  <span className="block font-mono text-xs text-gray-500">
+                                    Ref: {grupo.referencia_pago}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 font-bold text-body">${grupo.total.toFixed(2)}</td>
+                              <td className="px-6 py-4 text-body">
+                                {new Date(grupo.fecha_venta).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelarGrupo(grupo)}
+                                  disabled={!!cancelandoKey}
+                                  className="rounded bg-red-100 px-3 py-1 text-sm font-600 text-red-700 transition hover:bg-red-200 disabled:opacity-50"
+                                >
+                                  {busyGroup ? 'Cancelando…' : multi ? 'Cancelar venta' : 'Cancelar'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-8 rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-500">
+                  No hay ventas con esos filtros.
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
       {confirmDialog}

@@ -129,9 +129,17 @@ const migrarLayoutKeySecciones = async () => {
   if (!tablas.length) return;
 
   const [columnas] = await sequelize.query('PRAGMA table_info(secciones)');
-  if (!columnas.map((c) => c.name).includes('layout_key')) {
+  const tieneLayoutKey = columnas.map((c) => c.name).includes('layout_key');
+
+  if (!tieneLayoutKey) {
     await sequelize.query('ALTER TABLE secciones ADD COLUMN layout_key VARCHAR(20)');
     console.log('✓ Columna secciones.layout_key añadida');
+  } else {
+    // Atajo: si ya está migrado, no tocar (evita 3+ roundtrips a Turso en cada cold start)
+    const [conteo] = await sequelize.query(
+      "SELECT COUNT(*) AS c FROM secciones WHERE layout_key IS NULL OR layout_key = ''"
+    );
+    if (Number(conteo?.[0]?.c || 0) === 0) return;
   }
 
   // Inferir por filas de asientos (funciona aunque el nombre sea "ALO", "DGAG", etc.)
@@ -174,6 +182,7 @@ const migrarLayoutKeySecciones = async () => {
 };
 
 let tursoMigracionImagenHecha = false;
+let tursoMigracionLayoutHecha = false;
 
 const inicializarDB = async () => {
   try {
@@ -188,7 +197,10 @@ const inicializarDB = async () => {
             await migrarEsquemaEventosImagen();
             tursoMigracionImagenHecha = true;
           }
-          await migrarLayoutKeySecciones();
+          if (!tursoMigracionLayoutHecha) {
+            await migrarLayoutKeySecciones();
+            tursoMigracionLayoutHecha = true;
+          }
           return;
         }
       } catch {
