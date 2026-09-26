@@ -36,7 +36,7 @@ const mapVentaRowTurso = (row) => ({
   cliente_email: row.cliente_email,
   metodo_pago: row.metodo_pago,
   referencia_pago: row.referencia_pago,
-  precio_unitario: row.precio_unitario,
+  precio_unitario: Number(row.precio_unitario) || 0,
   fecha_venta: row.fecha_venta,
   funcion: {
     id: row.funcion_id,
@@ -115,7 +115,7 @@ async function obtenerVentasReporte({ fecha_inicio, fecha_fin, evento_id, funcio
     );
 
     const ventas = rows.map(mapVentaRowTurso);
-    const total = ventas.reduce((sum, v) => sum + parseFloat(v.precio_unitario || 0), 0);
+    const total = ventas.reduce((sum, v) => sum + (Number(v.precio_unitario) || 0), 0);
     return { ventas, total, cantidad: ventas.length };
   }
 
@@ -177,11 +177,16 @@ async function obtenerVentasReporte({ fecha_inicio, fecha_fin, evento_id, funcio
     order: [['fecha_venta', 'DESC']],
   });
 
-  const total = ventas.reduce((sum, v) => sum + parseFloat(v.precio_unitario), 0);
+  const ventasJson = ventas.map((v) => {
+    const json = v.toJSON();
+    json.precio_unitario = Number(json.precio_unitario) || 0;
+    return json;
+  });
+  const total = ventasJson.reduce((sum, v) => sum + v.precio_unitario, 0);
   return {
-    ventas: ventas.map((v) => v.toJSON()),
+    ventas: ventasJson,
     total,
-    cantidad: ventas.length,
+    cantidad: ventasJson.length,
   };
 }
 

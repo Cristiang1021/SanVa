@@ -4,15 +4,28 @@ export function seatLabelFromVenta(venta) {
   return `${venta.asiento.fila ?? ''}${venta.asiento.numero ?? ''}`;
 }
 
+function minutoKey(fecha) {
+  if (!fecha) return '';
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return String(fecha);
+  return d.toISOString().slice(0, 16);
+}
+
+function fechaMs(fecha) {
+  const d = new Date(fecha);
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
 /**
  * Agrupa asientos de la misma compra
  * (mismo cliente / función / pago y mismo minuto).
  */
 export function agruparVentas(ventas) {
   const map = new Map();
+  const lista = Array.isArray(ventas) ? ventas : [];
 
-  for (const v of ventas) {
-    const minuto = new Date(v.fecha_venta).toISOString().slice(0, 16);
+  for (const v of lista) {
+    if (!v) continue;
     const key = [
       v.funcion_id,
       v.usuario_id || v.vendedor?.id || '',
@@ -21,7 +34,7 @@ export function agruparVentas(ventas) {
       (v.cliente_email || '').trim().toLowerCase(),
       v.metodo_pago || '',
       v.referencia_pago || '',
-      minuto,
+      minutoKey(v.fecha_venta),
     ].join('|');
 
     if (!map.has(key)) {
@@ -52,7 +65,7 @@ export function agruparVentas(ventas) {
         asientosLabel: sorted.map(seatLabelFromVenta).join(', '),
       };
     })
-    .sort((a, b) => new Date(b.fecha_venta) - new Date(a.fecha_venta));
+    .sort((a, b) => fechaMs(b.fecha_venta) - fechaMs(a.fecha_venta));
 }
 
 /** Opciones de evento/función derivadas de una lista de ventas. */
