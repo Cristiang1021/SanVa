@@ -1,6 +1,6 @@
 const express = require('express');
 const { Evento, Seccion, Funcion } = require('../models');
-const { useTurso } = require('../config/database');
+const { sequelize, useTurso } = require('../config/database');
 const { getTursoClient } = require('../config/tursoClient');
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 const { inicializarTeatro } = require('../../scripts/inicializar-teatro');
@@ -114,7 +114,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Crear evento (solo admin)
 router.post('/', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const { nombre, descripcion, fecha_unica, hora_unica, imagen_base64 } = req.body;
+    const { nombre, descripcion, fecha_unica, hora_unica } = req.body;
 
     if (!nombre) {
       return res.status(400).json({ error: 'El nombre del evento es requerido.' });
@@ -132,19 +132,19 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
     const imagen = imagenDesdeBody(req.body);
     if (imagen !== undefined) Object.assign(data, imagen);
 
-    const evento = await Evento.create(data);
+    const eventoCompleto = await sequelize.transaction(async (transaction) => {
+      const evento = await Evento.create(data, { transaction });
 
-    if (fecha_unica) {
-      await Funcion.create({
-        evento_id: evento.id,
-        fecha_hora: new Date(`${fecha_unica}T${hora}:00`),
-        lugar: 'Sanva Shows',
-        activo: true,
-      });
-    }
+      if (fecha_unica) {
+        await Funcion.create({
+          evento_id: evento.id,
+          fecha_hora: new Date(`${fecha_unica}T${hora}:00`),
+          lugar: 'Sanva Shows',
+          activo: true,
+        }, { transaction });
+      }
 
-    const eventoCompleto = await Evento.findByPk(evento.id, {
-      include: EVENTO_INCLUDES,
+      return Evento.findByPk(evento.id, { include: EVENTO_INCLUDES, transaction });
     });
 
     res.status(201).json({

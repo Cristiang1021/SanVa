@@ -90,7 +90,10 @@ router.post('/login', loginLimiter, async (req, res) => {
       usuario: usuario.toJSON()
     });
   } catch (error) {
-    console.error('Error en login:', error);
+    console.error('Error en login:', {
+      tipo: error.name,
+      codigo: error.original?.code || error.code,
+    });
     res.status(500).json({ error: 'Error al iniciar sesión.' });
   }
 });
