@@ -18,7 +18,7 @@ export default function VendedorInicio() {
     try {
       setLoading(true);
       const response = await getEventos();
-      const eventosActivos = (response.data.eventos || []).filter((e) => e.activo);
+      const eventosActivos = (response.data.eventos || []).filter((e) => e.activo && !e.finalizado);
       setEventos(eventosActivos);
       setError('');
     } catch (err) {

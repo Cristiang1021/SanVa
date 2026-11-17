@@ -12,6 +12,7 @@ export default function AdminFunciones() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const { askConfirm, confirmDialog } = useConfirmDialog();
   const [formData, setFormData] = useState({
@@ -75,6 +76,18 @@ export default function AdminFunciones() {
       setModalOpen(false);
     } catch (err) {
       setError(err.response?.data?.error || 'Error al guardar función');
+    }
+  };
+
+  const cambiarEstado = async (funcion) => {
+    setCambiandoEstado(funcion.id);
+    try {
+      await updateFuncion(funcion.id, { pausada: !funcion.pausada });
+      await fetchData();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al cambiar el estado de la función');
+    } finally {
+      setCambiandoEstado(null);
     }
   };
 
@@ -157,6 +170,15 @@ export default function AdminFunciones() {
                     >
                       Editar
                     </button>
+                    {!funcion.finalizada && (
+                      <button
+                        onClick={() => cambiarEstado(funcion)}
+                        disabled={cambiandoEstado !== null}
+                        className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition text-sm font-600 disabled:opacity-50"
+                      >
+                        {funcion.pausada ? 'Reactivar' : 'Desactivar'}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(funcion.id)}
                       className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-600"

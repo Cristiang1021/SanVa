@@ -181,6 +181,21 @@ const migrarLayoutKeySecciones = async () => {
   }
 };
 
+const migrarPausaFunciones = async () => {
+  const columnas = () => sequelize.query('PRAGMA table_info(funciones)', {
+    type: sequelize.QueryTypes.SELECT,
+  });
+  const tienePausa = (campos) => campos.some((campo) => campo.name === 'pausada');
+  if (tienePausa(await columnas())) return;
+
+  try {
+    await sequelize.query('ALTER TABLE funciones ADD COLUMN pausada TINYINT(1) NOT NULL DEFAULT 0');
+  } catch (error) {
+    // Otra instancia de Vercel pudo agregar la columna al mismo tiempo.
+    if (!tienePausa(await columnas())) throw error;
+  }
+};
+
 let tursoMigracionImagenHecha = false;
 let tursoMigracionLayoutHecha = false;
 
@@ -190,26 +205,29 @@ const inicializarDB = async () => {
 
     // Turso ya inicializado — atajo rápido (sin sync ni migraciones repetidas)
     if (useTurso) {
+      let yaListo;
       try {
-        const yaListo = await tursoGet('SELECT id FROM usuarios WHERE id = 1 LIMIT 1');
-        if (yaListo) {
-          if (!tursoMigracionImagenHecha) {
-            await migrarEsquemaEventosImagen();
-            tursoMigracionImagenHecha = true;
-          }
-          if (!tursoMigracionLayoutHecha) {
-            await migrarLayoutKeySecciones();
-            tursoMigracionLayoutHecha = true;
-          }
-          return;
+        yaListo = await tursoGet('SELECT id FROM usuarios WHERE id = 1 LIMIT 1');
+      } catch (error) {
+        if (!/no such table: usuarios\b/i.test(error.message)) throw error;
+      }
+      if (yaListo) {
+        if (!tursoMigracionImagenHecha) {
+          await migrarEsquemaEventosImagen();
+          tursoMigracionImagenHecha = true;
         }
-      } catch {
-        // Tabla ausente — continuar con init completa
+        if (!tursoMigracionLayoutHecha) {
+          await migrarLayoutKeySecciones();
+          tursoMigracionLayoutHecha = true;
+        }
+        await migrarPausaFunciones();
+        return;
       }
     }
 
     await repararEsquemaTurso();
     await sequelize.sync();
+    await migrarPausaFunciones();
     await migrarEsquemaEventosImagen();
     tursoMigracionImagenHecha = true;
     await migrarLayoutKeySecciones();

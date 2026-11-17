@@ -23,6 +23,11 @@ const Funcion = sequelize.define('Funcion', {
     type: DataTypes.STRING(100),
     allowNull: true
   },
+  pausada: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
   activo: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
@@ -40,7 +45,7 @@ Funcion.prototype.estaFinalizada = function(ahora = Date.now()) {
 
 Funcion.prototype.paraCalendario = function(ahora) {
   const finalizada = this.estaFinalizada(ahora);
-  return { ...this.toJSON(), finalizada, activo: Boolean(this.activo) && !finalizada };
+  return { ...this.toJSON(), finalizada, activo: Boolean(this.activo) && !this.pausada && !finalizada };
 };
 
 module.exports = Funcion;

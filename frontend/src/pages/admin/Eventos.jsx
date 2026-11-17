@@ -223,8 +223,8 @@ export default function AdminEventos() {
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <span className={`text-xs px-2 py-1 rounded ${evento.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    {evento.activo ? 'Activo' : 'Inactivo'}
+                  <span className={`text-xs px-2 py-1 rounded ${evento.finalizado ? 'bg-gray-100 text-gray-700' : evento.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {evento.finalizado ? 'Finalizado' : evento.activo ? 'Activo' : 'Inactivo'}
                   </span>
                   <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
                     {evento.secciones?.length || 0} secciones

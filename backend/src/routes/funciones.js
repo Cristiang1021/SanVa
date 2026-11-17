@@ -132,7 +132,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
 
     if (useTurso) {
       const funcion = await tursoGet(
-        `SELECT f.id, f.evento_id, f.fecha_hora, f.lugar, f.activo, e.nombre AS evento_nombre
+        `SELECT f.id, f.evento_id, f.fecha_hora, f.lugar, f.activo, f.pausada, e.nombre AS evento_nombre
          FROM funciones f
          JOIN eventos e ON e.id = f.evento_id
          WHERE f.id = ? LIMIT 1`,
@@ -143,7 +143,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
         return res.status(404).json({ error: 'Función no encontrada.' });
       }
 
-      if (!funcion.activo || Funcion.build(funcion).estaFinalizada()) {
+      if (!Funcion.build(funcion).paraCalendario().activo) {
         return res.status(409).json({ error: 'Esta función ya no está disponible para venta.' });
       }
 
@@ -191,7 +191,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
     }
 
     const funcion = await Funcion.findByPk(req.params.id, {
-      attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo'],
+      attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo', 'pausada'],
       include: [
         {
           model: Evento,
@@ -205,7 +205,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
-    if (!funcion.activo || funcion.estaFinalizada()) {
+    if (!funcion.paraCalendario().activo) {
       return res.status(409).json({ error: 'Esta función ya no está disponible para venta.' });
     }
 
@@ -279,9 +279,17 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
-    const { fecha_hora, lugar, activo } = req.body;
+    const { fecha_hora, lugar, activo, pausada } = req.body;
+    if (pausada !== undefined) {
+      if (typeof pausada !== 'boolean') {
+        return res.status(400).json({ error: 'El estado de pausa debe ser verdadero o falso.' });
+      }
+      if (!funcion.activo || (!pausada && funcion.estaFinalizada())) {
+        return res.status(409).json({ error: 'Solo se pueden reactivar funciones programadas para una fecha futura.' });
+      }
+    }
 
-    await funcion.update({ fecha_hora, lugar, activo });
+    await funcion.update({ fecha_hora, lugar, activo, pausada });
 
     res.json({ message: 'Función actualizada correctamente', funcion: funcion.paraCalendario() });
   } catch (error) {
