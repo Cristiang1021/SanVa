@@ -455,6 +455,13 @@ router.get('/funcion/:funcionId', authMiddleware, requireAdmin, async (req, res)
 // Dashboard - resumen general
 router.get('/dashboard', authMiddleware, requireAdmin, async (req, res) => {
   try {
+    const funcionDisponible = "f.activo = 1 AND f.pausada = 0 AND julianday(f.fecha_hora) > julianday('now')";
+    const funcionesActivasSql = `SELECT COUNT(*) AS total FROM funciones f WHERE ${funcionDisponible}`;
+    const eventosActivosSql = `
+      SELECT COUNT(*) AS total FROM eventos e WHERE e.activo = 1 AND (
+        NOT EXISTS (SELECT 1 FROM funciones f WHERE f.evento_id = e.id AND f.activo = 1)
+        OR EXISTS (SELECT 1 FROM funciones f WHERE f.evento_id = e.id AND ${funcionDisponible})
+      )`;
     if (useTurso) {
       const { tursoGet } = require('../config/tursoQuery');
       const hoy = new Date();
@@ -462,8 +469,8 @@ router.get('/dashboard', authMiddleware, requireAdmin, async (req, res) => {
       const hoyIso = hoy.toISOString();
 
       const [eventos, funciones, ventasHoy, vendedores] = await Promise.all([
-        tursoGet('SELECT COUNT(*) AS total FROM eventos WHERE activo = 1'),
-        tursoGet('SELECT COUNT(*) AS total FROM funciones WHERE activo = 1'),
+        tursoGet(eventosActivosSql),
+        tursoGet(funcionesActivasSql),
         tursoGet(
           `SELECT COUNT(*) AS cantidad, COALESCE(SUM(precio_unitario), 0) AS total
            FROM ventas WHERE fecha_venta >= ?`,
@@ -492,8 +499,8 @@ router.get('/dashboard', authMiddleware, requireAdmin, async (req, res) => {
 
     const [eventosActivos, funcionesActivas, ventasHoyAgg, vendedoresActivos] =
       await Promise.all([
-        Evento.count({ where: { activo: true } }),
-        Funcion.count({ where: { activo: true } }),
+        sequelize.query(eventosActivosSql, { type: sequelize.QueryTypes.SELECT, plain: true }),
+        sequelize.query(funcionesActivasSql, { type: sequelize.QueryTypes.SELECT, plain: true }),
         Venta.findAll({
           attributes: [
             [sequelize.fn('COUNT', sequelize.col('id')), 'cantidad'],
@@ -513,8 +520,8 @@ router.get('/dashboard', authMiddleware, requireAdmin, async (req, res) => {
 
     const ventasHoy = ventasHoyAgg[0] || {};
     res.json({
-      eventos_activos: eventosActivos,
-      funciones_activas: funcionesActivas,
+      eventos_activos: Number(eventosActivos?.total || 0),
+      funciones_activas: Number(funcionesActivas?.total || 0),
       ventas_hoy: {
         cantidad: Number(ventasHoy.cantidad || 0),
         total: parseFloat(ventasHoy.total || 0),

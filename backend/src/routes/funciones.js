@@ -98,7 +98,8 @@ router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
       where: { evento_id: req.params.eventoId, activo: true },
       order: [['fecha_hora', 'ASC']]
     });
-    res.json({ funciones });
+    const ahora = Date.now();
+    res.json({ funciones: funciones.map((funcion) => funcion.paraCalendario(ahora)) });
   } catch (error) {
     console.error('Error al obtener funciones:', error);
     res.status(500).json({ error: 'Error al obtener funciones.' });
@@ -118,7 +119,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
-    res.json({ funcion });
+    res.json({ funcion: funcion.paraCalendario() });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener función.' });
   }
@@ -131,7 +132,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
 
     if (useTurso) {
       const funcion = await tursoGet(
-        `SELECT f.id, f.evento_id, f.fecha_hora, f.lugar, f.activo, e.nombre AS evento_nombre
+        `SELECT f.id, f.evento_id, f.fecha_hora, f.lugar, f.activo, f.pausada, e.nombre AS evento_nombre
          FROM funciones f
          JOIN eventos e ON e.id = f.evento_id
          WHERE f.id = ? LIMIT 1`,
@@ -140,6 +141,10 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
 
       if (!funcion) {
         return res.status(404).json({ error: 'Función no encontrada.' });
+      }
+
+      if (!Funcion.build(funcion).paraCalendario().activo) {
+        return res.status(409).json({ error: 'Esta función ya no está disponible para venta.' });
       }
 
       const [secciones, vendidosRow, totalRow] = await Promise.all([
@@ -186,7 +191,7 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
     }
 
     const funcion = await Funcion.findByPk(req.params.id, {
-      attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo'],
+      attributes: ['id', 'evento_id', 'fecha_hora', 'lugar', 'activo', 'pausada'],
       include: [
         {
           model: Evento,
@@ -198,6 +203,10 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
 
     if (!funcion) {
       return res.status(404).json({ error: 'Función no encontrada.' });
+    }
+
+    if (!funcion.paraCalendario().activo) {
+      return res.status(409).json({ error: 'Esta función ya no está disponible para venta.' });
     }
 
     const [secciones, vendidosCount] = await Promise.all([
@@ -254,7 +263,7 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
       lugar
     });
 
-    res.status(201).json({ message: 'Función creada correctamente', funcion });
+    res.status(201).json({ message: 'Función creada correctamente', funcion: funcion.paraCalendario() });
   } catch (error) {
     console.error('Error al crear función:', error);
     res.status(500).json({ error: 'Error al crear función.' });
@@ -270,11 +279,19 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
-    const { fecha_hora, lugar, activo } = req.body;
+    const { fecha_hora, lugar, activo, pausada } = req.body;
+    if (pausada !== undefined) {
+      if (typeof pausada !== 'boolean') {
+        return res.status(400).json({ error: 'El estado de pausa debe ser verdadero o falso.' });
+      }
+      if (!funcion.activo || (!pausada && funcion.estaFinalizada())) {
+        return res.status(409).json({ error: 'Solo se pueden reactivar funciones programadas para una fecha futura.' });
+      }
+    }
 
-    await funcion.update({ fecha_hora, lugar, activo });
+    await funcion.update({ fecha_hora, lugar, activo, pausada });
 
-    res.json({ message: 'Función actualizada correctamente', funcion });
+    res.json({ message: 'Función actualizada correctamente', funcion: funcion.paraCalendario() });
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar función.' });
   }

@@ -12,6 +12,7 @@ export default function AdminFunciones() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const { askConfirm, confirmDialog } = useConfirmDialog();
   const [formData, setFormData] = useState({
@@ -78,6 +79,18 @@ export default function AdminFunciones() {
     }
   };
 
+  const cambiarEstado = async (funcion) => {
+    setCambiandoEstado(funcion.id);
+    try {
+      await updateFuncion(funcion.id, { pausada: !funcion.pausada });
+      await fetchData();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al cambiar el estado de la función');
+    } finally {
+      setCambiandoEstado(null);
+    }
+  };
+
   const handleDelete = async (id) => {
     const ok = await askConfirm({
       title: 'Eliminar función',
@@ -117,7 +130,7 @@ export default function AdminFunciones() {
 
       {error && <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
-      {funciones.length === 0 ? (
+      {funciones.length === 0 ? !error && (
         <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
           No hay funciones. Crea una para comenzar.
         </div>
@@ -140,8 +153,8 @@ export default function AdminFunciones() {
                   </td>
                   <td className="px-6 py-4 text-body">{funcion.lugar}</td>
                   <td className="px-6 py-4">
-                    <span className={`text-xs px-2 py-1 rounded ${funcion.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {funcion.activo ? 'Activa' : 'Inactiva'}
+                    <span className={`text-xs px-2 py-1 rounded ${funcion.finalizada ? 'bg-gray-100 text-gray-700' : funcion.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {funcion.finalizada ? 'Finalizada' : funcion.activo ? 'Activa' : 'Inactiva'}
                     </span>
                   </td>
                   <td className="px-6 py-4 flex gap-2 justify-center">
@@ -157,6 +170,15 @@ export default function AdminFunciones() {
                     >
                       Editar
                     </button>
+                    {!funcion.finalizada && (
+                      <button
+                        onClick={() => cambiarEstado(funcion)}
+                        disabled={cambiandoEstado !== null}
+                        className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition text-sm font-600 disabled:opacity-50"
+                      >
+                        {funcion.pausada ? 'Reactivar' : 'Desactivar'}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(funcion.id)}
                       className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-600"

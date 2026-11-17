@@ -18,7 +18,7 @@ export default function VendedorInicio() {
     try {
       setLoading(true);
       const response = await getEventos();
-      const eventosActivos = (response.data.eventos || []).filter((e) => e.activo);
+      const eventosActivos = (response.data.eventos || []).filter((e) => e.activo && !e.finalizado);
       setEventos(eventosActivos);
       setError('');
     } catch (err) {
@@ -92,7 +92,7 @@ export default function VendedorInicio() {
                         </p>
                       )}
                       <div className="text-xs text-gray-500 mt-1">
-                        {evento.funciones?.length || 0} funciones disponibles
+                        {evento.funciones?.filter((funcion) => funcion.activo).length || 0} funciones disponibles
                       </div>
                     </div>
                   </div>
