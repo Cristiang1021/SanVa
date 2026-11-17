@@ -81,6 +81,10 @@ function toNodeBuffer(data) {
 
 function serializarEvento(evento) {
   const json = evento.toJSON();
+  if (evento.funciones) {
+    const ahora = Date.now();
+    json.funciones = evento.funciones.map((funcion) => funcion.paraCalendario(ahora));
+  }
   const tieneImagen = Boolean(json.imagen_mime || json.imagen_data);
   delete json.imagen_data;
 

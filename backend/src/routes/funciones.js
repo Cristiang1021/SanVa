@@ -98,7 +98,8 @@ router.get('/evento/:eventoId', authMiddleware, async (req, res) => {
       where: { evento_id: req.params.eventoId, activo: true },
       order: [['fecha_hora', 'ASC']]
     });
-    res.json({ funciones });
+    const ahora = Date.now();
+    res.json({ funciones: funciones.map((funcion) => funcion.paraCalendario(ahora)) });
   } catch (error) {
     console.error('Error al obtener funciones:', error);
     res.status(500).json({ error: 'Error al obtener funciones.' });
@@ -118,7 +119,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
-    res.json({ funcion });
+    res.json({ funcion: funcion.paraCalendario() });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener función.' });
   }
@@ -140,6 +141,10 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
 
       if (!funcion) {
         return res.status(404).json({ error: 'Función no encontrada.' });
+      }
+
+      if (!funcion.activo || Funcion.build(funcion).estaFinalizada()) {
+        return res.status(409).json({ error: 'Esta función ya no está disponible para venta.' });
       }
 
       const [secciones, vendidosRow, totalRow] = await Promise.all([
@@ -200,6 +205,10 @@ router.get('/:id/estado', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada.' });
     }
 
+    if (!funcion.activo || funcion.estaFinalizada()) {
+      return res.status(409).json({ error: 'Esta función ya no está disponible para venta.' });
+    }
+
     const [secciones, vendidosCount] = await Promise.all([
       Seccion.findAll({
         where: { evento_id: funcion.evento_id, activo: true },
@@ -254,7 +263,7 @@ router.post('/', authMiddleware, requireAdmin, async (req, res) => {
       lugar
     });
 
-    res.status(201).json({ message: 'Función creada correctamente', funcion });
+    res.status(201).json({ message: 'Función creada correctamente', funcion: funcion.paraCalendario() });
   } catch (error) {
     console.error('Error al crear función:', error);
     res.status(500).json({ error: 'Error al crear función.' });
@@ -274,7 +283,7 @@ router.put('/:id', authMiddleware, requireAdmin, async (req, res) => {
 
     await funcion.update({ fecha_hora, lugar, activo });
 
-    res.json({ message: 'Función actualizada correctamente', funcion });
+    res.json({ message: 'Función actualizada correctamente', funcion: funcion.paraCalendario() });
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar función.' });
   }

@@ -117,7 +117,7 @@ export default function AdminFunciones() {
 
       {error && <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
-      {funciones.length === 0 ? (
+      {funciones.length === 0 ? !error && (
         <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
           No hay funciones. Crea una para comenzar.
         </div>
@@ -140,8 +140,8 @@ export default function AdminFunciones() {
                   </td>
                   <td className="px-6 py-4 text-body">{funcion.lugar}</td>
                   <td className="px-6 py-4">
-                    <span className={`text-xs px-2 py-1 rounded ${funcion.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {funcion.activo ? 'Activa' : 'Inactiva'}
+                    <span className={`text-xs px-2 py-1 rounded ${funcion.finalizada ? 'bg-gray-100 text-gray-700' : funcion.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {funcion.finalizada ? 'Finalizada' : funcion.activo ? 'Activa' : 'Inactiva'}
                     </span>
                   </td>
                   <td className="px-6 py-4 flex gap-2 justify-center">

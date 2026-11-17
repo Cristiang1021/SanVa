@@ -34,4 +34,13 @@ const Funcion = sequelize.define('Funcion', {
   updatedAt: 'updated_at'
 });
 
+Funcion.prototype.estaFinalizada = function(ahora = Date.now()) {
+  return new Date(this.fecha_hora).getTime() <= ahora;
+};
+
+Funcion.prototype.paraCalendario = function(ahora) {
+  const finalizada = this.estaFinalizada(ahora);
+  return { ...this.toJSON(), finalizada, activo: Boolean(this.activo) && !finalizada };
+};
+
 module.exports = Funcion;

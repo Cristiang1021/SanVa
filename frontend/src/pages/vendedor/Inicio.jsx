@@ -92,7 +92,7 @@ export default function VendedorInicio() {
                         </p>
                       )}
                       <div className="text-xs text-gray-500 mt-1">
-                        {evento.funciones?.length || 0} funciones disponibles
+                        {evento.funciones?.filter((funcion) => funcion.activo).length || 0} funciones disponibles
                       </div>
                     </div>
                   </div>

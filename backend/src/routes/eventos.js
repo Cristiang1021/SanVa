@@ -15,7 +15,7 @@ const EVENTO_INCLUDES = [
 
 const LIST_INCLUDES = [
   { model: Seccion, as: 'secciones', attributes: ['id', 'nombre', 'precio', 'color', 'capacidad'] },
-  { model: Funcion, as: 'funciones', attributes: ['id', 'fecha_hora', 'lugar'] },
+  { model: Funcion, as: 'funciones', attributes: ['id', 'fecha_hora', 'lugar', 'activo'] },
 ];
 
 const cargarImagenEvento = async (id) => {

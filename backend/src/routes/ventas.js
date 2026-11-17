@@ -49,6 +49,11 @@ router.post('/', authMiddleware, requireVendedor, async (req, res) => {
       return res.status(404).json({ error: 'Función no encontrada o inactiva.' });
     }
 
+    if (funcion.estaFinalizada()) {
+      await transaction.rollback();
+      return res.status(409).json({ error: 'Esta función ya finalizó y no admite nuevas ventas.' });
+    }
+
     const ventasCreadas = [];
     const asientosInfo = [];
 
